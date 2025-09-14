@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Reflection.Metadata.Ecma335;
 
 public class Program
 {
@@ -34,12 +35,34 @@ public class Program
 
     public static string ConvertAsciiToHex(int number)
     {
-        return ConvertAsciiToHexRecursion(number, number / 16, number % 16); 
+        return ConvertAsciiToHexRecursion(number, number / 16, number % 16);
+    }
+
+    public static double ConvertHexToDecimal(string hexNumber)
+    {
+        int powOfSixteen = hexNumber.Length - 1;
+        double resultingNumber = 0;
+
+        foreach (var character in hexNumber)
+        {
+            if (character >= '0' && character <= '9')
+            {
+                resultingNumber += (character - '0') * Math.Pow(16, powOfSixteen);
+            }
+            else if (character >= 'A' && character <= 'F')
+            {
+                resultingNumber += (character - ('A' - 10)) * Math.Pow(16, powOfSixteen);
+            }
+            powOfSixteen--;
+        }
+        return resultingNumber;
     }
 
     public static void Main()
     {
-        string resultingNumber = ConvertAsciiToHex(58); 
-        Console.WriteLine(resultingNumber);
+        string hexNumber = ConvertAsciiToHex(58);
+        Console.WriteLine(hexNumber);
+        double decimalNumber = ConvertHexToDecimal(hexNumber);
+        Console.WriteLine(decimalNumber);
     }
 }
