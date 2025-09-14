@@ -33,7 +33,8 @@ public class Program
 
             if (!VerifyLineStart(lineSpan.SliceStart())) throw new ArgumentException("Line start does not match expected line start.");
 
-            parsedLines[lineIndex].byteCount = lineSpan.SliceU2();
+            parsedLines[lineIndex].byteCount = lineSpan.Slice2Char();
+            parsedLines[lineIndex].address = lineSpan.Slice4Char();
             ;
         }
         ;
