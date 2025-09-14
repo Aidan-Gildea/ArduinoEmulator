@@ -58,17 +58,18 @@ public class Program
         return resultingNumber;
     }
 
-    public static double ConvertAsciiToDecimal(int asciiNumber)
-    {
-        return (asciiNumber - '0');
-    }
+    public static int ConvertAsciiToDecimal(int asciiNumber) => asciiNumber - '0';
 
     public static void Main()
     {
-        Console.WriteLine(ConvertAsciiToDecimal(49));
-        string hexNumber = ConvertAsciiToHex(49);
-        Console.WriteLine(hexNumber);
-        double decimalNumber = ConvertHexToDecimal(hexNumber.Remove(0, 2));
+        int firstDigit = ConvertAsciiToDecimal(49);
+        int secondDigit = ConvertAsciiToDecimal(48);
+
+        
+
+        string hexNumber = firstDigit.ToString() + secondDigit.ToString();
+
+        double decimalNumber = ConvertHexToDecimal(hexNumber);
         Console.WriteLine(decimalNumber);
     }
 }
