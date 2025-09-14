@@ -58,11 +58,17 @@ public class Program
         return resultingNumber;
     }
 
+    public static double ConvertAsciiToDecimal(int asciiNumber)
+    {
+        return (asciiNumber - '0');
+    }
+
     public static void Main()
     {
-        string hexNumber = ConvertAsciiToHex(58);
+        Console.WriteLine(ConvertAsciiToDecimal(49));
+        string hexNumber = ConvertAsciiToHex(49);
         Console.WriteLine(hexNumber);
-        double decimalNumber = ConvertHexToDecimal(hexNumber);
+        double decimalNumber = ConvertHexToDecimal(hexNumber.Remove(0, 2));
         Console.WriteLine(decimalNumber);
     }
 }
