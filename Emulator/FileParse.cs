@@ -14,7 +14,7 @@ public class LineFormat
 
 public class Program
 {
-    public static bool VerifyLineStart(char lineStart)
+    public static bool VerifyLineStart(int lineStart)
     {
         const char expectedLineStart = ':';
         return expectedLineStart == lineStart;
@@ -31,7 +31,7 @@ public class Program
             ReadOnlySpan<char> lineSpan = line.AsSpan();
             parsedLines[lineIndex] = new LineFormat();
 
-            if (!VerifyLineStart(lineSpan.SliceStart())) throw new ArgumentException("Line start does not match expected line start.");
+            if (!VerifyLineStart(lineSpan.Slice1Char())) throw new ArgumentException("Line start does not match expected line start.");
 
             parsedLines[lineIndex].byteCount = lineSpan.Slice2Char();
             parsedLines[lineIndex].address = lineSpan.Slice4Char();

@@ -1,22 +1,32 @@
 public static class SpanExtensionFunctons
 {
-    public static char SliceStart(this ref ReadOnlySpan<char> data)
+    public static uint ConvertSliceToDecimal(this ref ReadOnlySpan<char> dataSlice)
     {
-        const int SLICE_SIZE = 1;
-        char sliceToReturn = ' ';
+        int currentPowerOf16 = dataSlice.Length - 1;
+        uint resultingNumber = 0;
 
-        ReadOnlySpan<char> dataSlice = data.Slice(0, SLICE_SIZE);
-        sliceToReturn = dataSlice[0];
-        data = data.Slice(SLICE_SIZE);
+        foreach (var character in dataSlice)
+        {
+            if (character >= '0' && character <= '9')
+            {
+                resultingNumber += (uint)((character - '0') * Math.Pow(16, currentPowerOf16));
+            }
+            else if (character >= 'A' && character <= 'F')
+            {
+                resultingNumber += (uint)((character - ('A' - 10)) * Math.Pow(16, currentPowerOf16));
+            }
+            else if (character == ':') return character;
 
-        return sliceToReturn;
+            currentPowerOf16--;
+        }
+        return resultingNumber;
     }
     public static int Slice1Char(this ref ReadOnlySpan<char> data)
     {
         const int SLICE_SIZE = 1;
 
         ReadOnlySpan<char> dataSlice = data.Slice(0, SLICE_SIZE);
-        int resultingNumber = (dataSlice[0] - '0');
+        int resultingNumber = (int)dataSlice.ConvertSliceToDecimal();
         data = data.Slice(SLICE_SIZE);
 
         return resultingNumber;
@@ -26,7 +36,7 @@ public static class SpanExtensionFunctons
         const int SLICE_SIZE = 2;
 
         ReadOnlySpan<char> dataSlice = data.Slice(0, SLICE_SIZE);
-        ushort resultingNumber = (ushort)(((dataSlice[0] - '0') * 16) + (dataSlice[1] - '0'));
+        ushort resultingNumber = (ushort)dataSlice.ConvertSliceToDecimal();
         data = data.Slice(SLICE_SIZE);
 
         return resultingNumber;
@@ -36,7 +46,7 @@ public static class SpanExtensionFunctons
         const int SLICE_SIZE = 4;
 
         ReadOnlySpan<char> dataSlice = data.Slice(0, SLICE_SIZE);
-        uint resultingNumber = (uint)(((dataSlice[0] - '0') * 4096) + ((dataSlice[1] - '0') * 256) + ((dataSlice[2] - '0') * 16) + (dataSlice[3] - '0'));
+        uint resultingNumber = dataSlice.ConvertSliceToDecimal();
         data = data.Slice(SLICE_SIZE);
 
         return resultingNumber;
