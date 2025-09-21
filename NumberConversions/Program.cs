@@ -38,20 +38,20 @@ public class Program
         return ConvertAsciiToHexRecursion(number, number / 16, number % 16);
     }
 
-    public static double ConvertHexToDecimal(string hexNumber)
+    public static int ConvertHexToDecimal(string hexNumber)
     {
         int powOfSixteen = hexNumber.Length - 1;
-        double resultingNumber = 0;
+        int resultingNumber = 0;
 
         foreach (var character in hexNumber)
         {
             if (character >= '0' && character <= '9')
             {
-                resultingNumber += (character - '0') * Math.Pow(16, powOfSixteen);
+                resultingNumber += (int)((character - '0') * Math.Pow(16, powOfSixteen));
             }
             else if (character >= 'A' && character <= 'F')
             {
-                resultingNumber += (character - ('A' - 10)) * Math.Pow(16, powOfSixteen);
+                resultingNumber += (int)((character - ('A' - 10)) * Math.Pow(16, powOfSixteen));
             }
             powOfSixteen--;
         }
@@ -69,7 +69,8 @@ public class Program
 
         string hexNumber = firstDigit.ToString() + secondDigit.ToString();
 
-        double decimalNumber = ConvertHexToDecimal(hexNumber);
-        Console.WriteLine(decimalNumber);
+        int decimalNumber = (int)ConvertHexToDecimal("0C");
+        string binaryNumber = Convert.ToString(decimalNumber, 2);
+        Console.WriteLine(binaryNumber);
     }
 }
