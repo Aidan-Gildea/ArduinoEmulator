@@ -2,7 +2,7 @@ using System.Reflection.Metadata.Ecma335;
 
 public class ProgramData
 {
-    int pc;
+    public int pc;
 }
 
 public abstract class CommandTemplate
@@ -22,5 +22,7 @@ public class JMP() : CommandTemplate
 
         int address = (byte)(commandBytes[1] & 1) << 22 | (byte)(commandBytes[0] >> 4) << 17 | (byte)(commandBytes[0] & 1) << 16 | (byte)(nextByte) << 8 | (byte)lastByte;
         commandIndex += 2;
+
+        program.pc = address;
     }
 }
