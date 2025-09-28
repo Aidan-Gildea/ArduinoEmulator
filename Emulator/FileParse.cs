@@ -57,7 +57,7 @@ public class Program
             parsedLines[lineIndex].address = lineSpan.Slice4Char();
             parsedLines[lineIndex].recordType = lineSpan.Slice2Char();
 
-            for (int i = 0; i < parsedLines[lineIndex].byteCount; i++)
+            for (int i = 0; i < parsedLines[lineIndex].byteCount; i += 2)
             {
                 byte[] commandBytes = new byte[]
                 {
@@ -66,12 +66,10 @@ public class Program
                 };
 
                 CommandTemplate command = FindCommand(commandBytes);
-                command.RunCommand(programData, commandBytes, lineSpan);
-
-                ; ; ; ; ;
+                command.RunCommand(programData, commandBytes, ref lineSpan, ref i);
             }
-            ;
+            byte endOfLine = (byte)lineSpan.Slice2Char(); 
         }
-        ;
+        
     }
 }
