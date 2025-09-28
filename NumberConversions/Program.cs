@@ -62,15 +62,9 @@ public class Program
 
     public static void Main()
     {
-        int firstDigit = ConvertAsciiToDecimal(49);
-        int secondDigit = ConvertAsciiToDecimal(48);
 
-        
-
-        string hexNumber = firstDigit.ToString() + secondDigit.ToString();
-
-        int decimalNumber = (int)ConvertHexToDecimal("0C");
-        string binaryNumber = Convert.ToString(decimalNumber, 2);
-        Console.WriteLine(binaryNumber);
+        // int decimalNumber = (int)ConvertHexToDecimal("0C");
+        // string binaryNumber = Convert.ToString(decimalNumber, 2);
+        // Console.WriteLine(binaryNumber);
     }
 }
