@@ -9,16 +9,28 @@ public class LineFormat
     public ushort byteCount;
     public uint address;
     public ushort recordType;
-    public byte[] data;
+    public List<CommandTemplate> commands = new List<CommandTemplate>();
     public ushort checksum;
 };
 
 public class Program
 {
-    public static ProgramData programData; 
-    public static Dictionary<int, List<Func<CommandTemplate>>> TestDictionary = new Dictionary<int, List<Func<CommandTemplate>>>()
+    public static ProgramData programData = new ProgramData();
+    public static Dictionary<int, List<Func<CommandTemplate>>> SixBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
     {
-        [0b1001010] = new List<Func<CommandTemplate>>() { () => new JMP() },
+        [0b100101] = new List<Func<CommandTemplate>>() { () => new JMP() },
+        [0b001001] = new List<Func<CommandTemplate>>() { () => new EOR() },
+    };
+
+    public static Dictionary<int, List<Func<CommandTemplate>>> FiveBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
+    {
+        [0b10111] = new List<Func<CommandTemplate>>() { () => new OUT() },
+    };
+
+    public static Dictionary<int, List<Func<CommandTemplate>>> FourBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
+    {
+        [0b1110] = new List<Func<CommandTemplate>>() { () => new LDI() },
+
     };
 
     public static bool VerifyLineStart(int lineStart)
@@ -29,15 +41,42 @@ public class Program
 
     public static CommandTemplate FindCommand(byte[] commandBytes)
     {
-        foreach (var item in TestDictionary[commandBytes[1] >> 1])
+        List<Func<CommandTemplate>>? Commands = new List<Func<CommandTemplate>>();
+        if (SixBitOpCodes.TryGetValue(commandBytes[1] >> 2, out Commands))
         {
-            CommandTemplate command = item();
-            if (command.ConfirmCommand(commandBytes))
+            foreach (var item in Commands)
             {
-                return command;
+                CommandTemplate command = item();
+                if (command.ConfirmCommand(commandBytes))
+                {
+                    return command;
+                }
             }
         }
-        return null;
+        else if (FiveBitOpCodes.TryGetValue(commandBytes[1] >> 3, out Commands))
+        {
+            foreach (var item in Commands)
+            {
+                CommandTemplate command = item();
+                if (command.ConfirmCommand(commandBytes))
+                {
+                    return command;
+                }
+            }
+        }
+        else
+        {
+            foreach (var item in FourBitOpCodes[commandBytes[1] >> 4])
+            {
+                CommandTemplate command = item();
+                if (command.ConfirmCommand(commandBytes))
+                {
+                    return command;
+                }
+            }
+        }
+        
+        throw new ArgumentException("Command does not exist");
     }
     public static void Main()
     {
@@ -66,9 +105,10 @@ public class Program
                 };
 
                 CommandTemplate command = FindCommand(commandBytes);
+                parsedLines[lineIndex].commands.Add(command);
                 command.RunCommand(programData, commandBytes, ref lineSpan, ref i);
             }
-            byte endOfLine = (byte)lineSpan.Slice2Char(); 
+            parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char(); 
         }
         
     }
