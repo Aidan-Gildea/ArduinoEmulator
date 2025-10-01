@@ -74,7 +74,6 @@ public class OUT() : CommandTemplate
 
         program.ioSpace[IOAddress] = program.registers[registerAddress];
         program.pc++;
-        ;
     }
 }
 
@@ -88,5 +87,11 @@ public class LDI() : CommandTemplate
         byte lowKBytes = (byte)(commandBytes[0] & 0b1111);
 
         byte dBytes = (byte)((commandBytes[0] >> 4) & 0b1111); // might need to change
+        dBytes <<= 1;
+
+        byte kNumber = (byte)((highKBytes << 4) | lowKBytes);
+        program.registers[dBytes] = kNumber;
+
+        program.pc++;
     }
 }
