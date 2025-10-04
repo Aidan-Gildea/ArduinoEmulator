@@ -2,6 +2,7 @@ using System.Configuration.Assemblies;
 using System.Data;
 using System.Reflection.Metadata.Ecma335;
 using Emulator;
+using SharedDomainTypes;
 
 public class ProgramData
 {
@@ -110,5 +111,21 @@ public class IN() : CommandTemplate
 
         program.registers[registerAddress] = program.ioSpace[IOAddress];
         program.pc++;
+    }
+}
+
+public class RJMP() : CommandTemplate
+{
+    public override bool ConfirmCommand(byte[] commandBytes) => true;
+
+    public override void RunCommand(ProgramData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        byte highKBytes = (byte)(commandBytes[1] & 0b1111);
+        byte remainingKBytes = (byte)(commandBytes[0]);
+
+        int kNumber = highKBytes << 8 | remainingKBytes;
+        ThreeNibble threeNibble = kNumber;
+
+        program.pc += 1 + threeNibble;
     }
 }

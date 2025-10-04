@@ -30,7 +30,7 @@ public class Program
     public static Dictionary<int, List<Func<CommandTemplate>>> FourBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
     {
         [0b1110] = new List<Func<CommandTemplate>>() { () => new LDI() },
-
+        [0b1100] = new List<Func<CommandTemplate>>() { () => new RJMP() },
     };
 
     public static bool VerifyLineStart(int lineStart)
