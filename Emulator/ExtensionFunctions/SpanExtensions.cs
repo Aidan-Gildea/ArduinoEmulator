@@ -2,22 +2,21 @@ public static class SpanExtensionFunctons
 {
     public static uint ConvertSliceToDecimal(this ref ReadOnlySpan<char> dataSlice)
     {
-        int currentPowerOf16 = dataSlice.Length - 1;
+        if (dataSlice[0] == ':') return dataSlice[0];
+        
         uint resultingNumber = 0;
 
         foreach (var character in dataSlice)
         {
+            resultingNumber *= 16;
             if (character >= '0' && character <= '9')
             {
-                resultingNumber += (uint)((character - '0') * Math.Pow(16, currentPowerOf16));
+                resultingNumber += (uint)(character - '0');
             }
             else if (character >= 'A' && character <= 'F')
             {
-                resultingNumber += (uint)((character - ('A' - 10)) * Math.Pow(16, currentPowerOf16));
+                resultingNumber += (uint)(character - ('A' - 10));
             }
-            else if (character == ':') return character;
-
-            currentPowerOf16--;
         }
         return resultingNumber;
     }

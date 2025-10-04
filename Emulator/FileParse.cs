@@ -85,6 +85,8 @@ public class Program
         LineFormat[] parsedLines = new LineFormat[fileData.Length];
         int lineIndex = 0;
 
+        byte[] commandBytes = new byte[2];
+
         foreach (var line in fileData)
         {
             ReadOnlySpan<char> lineSpan = line.AsSpan();
@@ -98,17 +100,14 @@ public class Program
 
             for (int i = 0; i < parsedLines[lineIndex].byteCount; i += 2)
             {
-                byte[] commandBytes = new byte[]
-                {
-                    (byte)lineSpan.Slice2Char(),
-                    (byte)lineSpan.Slice2Char(),
-                };
+                commandBytes[0] = (byte)lineSpan.Slice2Char();
+                commandBytes[1] = (byte)lineSpan.Slice2Char();
 
                 CommandTemplate command = FindCommand(commandBytes);
                 parsedLines[lineIndex].commands.Add(command);
                 command.RunCommand(programData, commandBytes, ref lineSpan, ref i);
             }
-            parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char(); 
+            parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char();
         }
         
     }
