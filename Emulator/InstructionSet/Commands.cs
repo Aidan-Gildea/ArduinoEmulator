@@ -62,7 +62,7 @@ public class EOR() : CommandTemplate
 
 public class OUT() : CommandTemplate
 {
-    public override bool ConfirmCommand(byte[] commandBytes) => true;
+    public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[1] >> 3) & 0b1) == 1;
 
     public override void RunCommand(ProgramData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
     {
@@ -92,6 +92,23 @@ public class LDI() : CommandTemplate
         byte kNumber = (byte)((highKBytes << 4) | lowKBytes);
         program.registers[dBytes] = kNumber;
 
+        program.pc++;
+    }
+}
+
+public class IN() : CommandTemplate
+{
+    public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[1] >> 3) & 0b1) == 0;
+
+    public override void RunCommand(ProgramData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        byte twoHighAABytes = (byte)((commandBytes[1] >> 1) & 0b11);
+        byte highDByte = (byte)(commandBytes[1] & 1);
+
+        byte IOAddress = (byte)((twoHighAABytes << 4) | commandBytes[0] & 0b1111);
+        byte registerAddress = (byte)((highDByte << 4) | (commandBytes[0] >> 4));
+
+        program.registers[registerAddress] = program.ioSpace[IOAddress];
         program.pc++;
     }
 }
