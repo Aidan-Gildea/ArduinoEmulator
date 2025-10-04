@@ -10,18 +10,18 @@ public class ThreeNibble(short num)
     {
         if (threeNib.numValue >> 11 == 1)
         {
-            return threeNib.numValue + 2047;
+            return threeNib.numValue + 2048;
         }
         return threeNib.numValue;
     }
 
-    public static explicit operator ThreeNibble(int number)
+    public static implicit operator ThreeNibble(int number)
     {
         int numberToReturn = number;
 
         if (number >> 11 == 1)
         {
-            number -= 2048;
+            numberToReturn -= 2048;
         }
 
         return new ThreeNibble((short)numberToReturn);
