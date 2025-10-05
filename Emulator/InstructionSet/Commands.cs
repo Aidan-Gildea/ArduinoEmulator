@@ -37,6 +37,8 @@ public class JMP() : CommandTemplate
         commandIndex += 2;
 
         program.pc = address;
+
+        Console.WriteLine($"JMP to {address}");
     }
 }
 
@@ -58,6 +60,8 @@ public class EOR() : CommandTemplate
         program.registers[dRegAddress] = (byte)(program.registers[dRegAddress] ^ program.registers[rRegAddress]);
 
         program.pc++;
+
+        Console.WriteLine($"R{dRegAddress} is now {program.registers[dRegAddress]} ");
     }
 }
 
@@ -75,6 +79,8 @@ public class OUT() : CommandTemplate
 
         program.ioSpace[IOAddress] = program.registers[registerAddress];
         program.pc++;
+
+        Console.WriteLine($"OUT IO Space at {IOAddress} is now {program.registers[registerAddress]}");
     }
 }
 
@@ -93,6 +99,8 @@ public class LDI() : CommandTemplate
         byte kNumber = (byte)((highKBytes << 4) | lowKBytes);
         program.registers[dBytes] = kNumber;
 
+        Console.WriteLine($"LDI R{dBytes} = {kNumber}");
+
         program.pc++;
     }
 }
@@ -110,6 +118,8 @@ public class IN() : CommandTemplate
         byte registerAddress = (byte)((highDByte << 4) | (commandBytes[0] >> 4));
 
         program.registers[registerAddress] = program.ioSpace[IOAddress];
+
+        Console.WriteLine($"IN R{registerAddress} at IO Space {IOAddress}");
         program.pc++;
     }
 }
@@ -127,5 +137,17 @@ public class RJMP() : CommandTemplate
         ThreeNibble threeNibble = kNumber;
 
         program.pc += 1 + threeNibble;
+
+        Console.WriteLine($"RJMP to {threeNibble}");
+    }
+}
+
+public class SUBI() : CommandTemplate
+{
+    public override bool ConfirmCommand(byte[] commandBytes) => true;
+
+    public override void RunCommand(ProgramData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        
     }
 }

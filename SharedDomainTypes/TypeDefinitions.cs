@@ -4,7 +4,7 @@ using threeNib = ThreeNibble;
 
 public class ThreeNibble(short num)
 {
-    short numValue = num;
+    public short numValue = num;
 
     public static implicit operator int(ThreeNibble threeNib)
     {
@@ -25,5 +25,10 @@ public class ThreeNibble(short num)
         }
 
         return new ThreeNibble((short)numberToReturn);
+    }
+
+    public override string ToString()
+    {
+        return numValue.ToString();
     }
 }

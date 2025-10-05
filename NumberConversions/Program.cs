@@ -24,7 +24,7 @@ public class Program
     
     public static string ConvertAsciiToHexRecursion(int number, int quotient, int remainder)
     {
-        if (quotient == 0) return $"0x{NumberToLetter[remainder]}";
+        if (quotient == 0) return $"{NumberToLetter[remainder]}";
 
         string resultingString = ConvertAsciiToHexRecursion(number, quotient / 16, quotient % 16);
 
@@ -62,7 +62,7 @@ public class Program
 
     public static void Main()
     {
-
+        Console.WriteLine(ConvertAsciiToHex(92));
         // int decimalNumber = (int)ConvertHexToDecimal("0C");
         // string binaryNumber = Convert.ToString(decimalNumber, 2);
         // Console.WriteLine(binaryNumber);

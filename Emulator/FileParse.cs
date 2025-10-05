@@ -103,6 +103,7 @@ public class Program
                 commandBytes[0] = (byte)lineSpan.Slice2Char();
                 commandBytes[1] = (byte)lineSpan.Slice2Char();
 
+
                 CommandTemplate command = FindCommand(commandBytes);
                 parsedLines[lineIndex].commands.Add(command);
                 command.RunCommand(programData, commandBytes, ref lineSpan, ref i);
