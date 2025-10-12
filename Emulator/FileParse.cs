@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.IO.Compression;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 
@@ -20,6 +21,7 @@ public class Program
     {
         [0b100101] = new List<Func<CommandTemplate>>() { () => new JMP() },
         [0b001001] = new List<Func<CommandTemplate>>() { () => new EOR() },
+        [0b100100] = new List<Func<CommandTemplate>>() { () => new STX() },
     };
 
     public static Dictionary<int, List<Func<CommandTemplate>>> FiveBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
@@ -31,6 +33,7 @@ public class Program
     {
         [0b1110] = new List<Func<CommandTemplate>>() { () => new LDI() },
         [0b1100] = new List<Func<CommandTemplate>>() { () => new RJMP() },
+        [0b0101] = new List<Func<CommandTemplate>>() { () => new SUBI() },
     };
 
     public static bool VerifyLineStart(int lineStart)
@@ -103,12 +106,16 @@ public class Program
                 commandBytes[0] = (byte)lineSpan.Slice2Char();
                 commandBytes[1] = (byte)lineSpan.Slice2Char();
 
+                if (line == ":10007000DEBFCDBF21E0A0E0B1E001C01D92A930FC" && i == 11)
+                {
+                    ;
+                }
 
                 CommandTemplate command = FindCommand(commandBytes);
                 parsedLines[lineIndex].commands.Add(command);
                 command.RunCommand(programData, commandBytes, ref lineSpan, ref i);
             }
-            parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char();
+            parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char();  
         }
         
     }

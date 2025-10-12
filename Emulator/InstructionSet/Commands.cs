@@ -9,12 +9,14 @@ public class ProgramData
     public int pc;
     public byte[] registers;
     public byte[] ioSpace;
+    public byte[] dataSpace;
 
     public ProgramData()
     {
         pc = 0;
         registers = new byte[32];
         ioSpace = new byte[64];
+        dataSpace = new byte[2000];
     }
 }
 
@@ -90,11 +92,12 @@ public class LDI() : CommandTemplate
 
     public override void RunCommand(ProgramData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
     {
+        
         byte highKBytes = (byte)(commandBytes[1] & 0b1111);
         byte lowKBytes = (byte)(commandBytes[0] & 0b1111);
 
-        byte dBytes = (byte)((commandBytes[0] >> 4) & 0b1111); // might need to change
-        dBytes += 16;
+        byte dBytes = (byte)((commandBytes[0] >> 4) & 0b1111); 
+        dBytes += 16; // AVR instruction set uses R16-R31 for this command
 
         byte kNumber = (byte)((highKBytes << 4) | lowKBytes);
         program.registers[dBytes] = kNumber;
@@ -148,6 +151,85 @@ public class SUBI() : CommandTemplate
 
     public override void RunCommand(ProgramData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
     {
-        
+        byte highKBytes = (byte)(commandBytes[1] & 0b1111);
+        byte lowKBytes = (byte)(commandBytes[0] & 0b1111);
+        byte dBytes = (byte)((commandBytes[0] >> 4) & 0b1111);
+        dBytes += 16; // AVR instruction set uses R16-R31 for this command
+        byte kNumber = (byte)((highKBytes << 4) | lowKBytes);
+
+        byte result = (byte)(program.registers[dBytes] - kNumber);
+        program.registers[dBytes] = result;
+        program.pc++;
+        Console.WriteLine($"SUBI R{dBytes} = {result} (was {program.registers[dBytes] + kNumber}, sub {kNumber})");
+    }
+}
+
+public class STX() : CommandTemplate
+{
+    private enum Variant { None, X, XPostInc, XPreDec }
+    private Variant detectedVariant = Variant.None;
+
+    // ST X, Rr:    1001 001d dddd 1100
+    // ST X+, Rr:   1001 001d dddd 1101
+    // ST -X, Rr:   1001 001d dddd 1110
+    public override bool ConfirmCommand(byte[] commandBytes)
+    {
+        int lastNibble = commandBytes[0] & 0xF;
+        if (((commandBytes[1] >> 1) & 0b1) == 1)
+        {
+            if (lastNibble == 0xC)
+            {
+                detectedVariant = Variant.X;
+                return true;
+            }
+            else if (lastNibble == 0xD)
+            {
+                detectedVariant = Variant.XPostInc;
+                return true;
+            }
+            else if (lastNibble == 0xE)
+            {
+                detectedVariant = Variant.XPreDec;
+                return true;
+            }
+        }
+        detectedVariant = Variant.None;
+        return false;
+    }
+
+    public override void RunCommand(ProgramData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        // Get X pointer (R27:R26)
+        int x = (program.registers[27] << 8) | program.registers[26];
+
+        // Get source register
+        byte highRByte = (byte)(commandBytes[1] & 0b1);
+        byte lowRBytes = (byte)(commandBytes[0] >> 4);
+        byte registerAddress = (byte)((highRByte << 4) | lowRBytes);
+
+        switch (detectedVariant)
+        {
+            case Variant.X:
+                program.dataSpace[x] = program.registers[registerAddress];
+                break;
+            case Variant.XPostInc:
+                program.dataSpace[x] = program.registers[registerAddress];
+                x++;
+                program.registers[27] = (byte)(x >> 8);
+                program.registers[26] = (byte)(x & 0xFF);
+                break;
+            case Variant.XPreDec:
+                x--;
+                program.registers[27] = (byte)(x >> 8);
+                program.registers[26] = (byte)(x & 0xFF);
+                program.dataSpace[x] = program.registers[registerAddress];
+                break;
+            default:
+                throw new InvalidOperationException("Unknown STX variant");
+        }
+
+        Console.WriteLine($"STX put register {registerAddress} into dataspace {x}");
+
+        program.pc++;
     }
 }
