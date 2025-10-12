@@ -16,7 +16,7 @@ public class LineFormat
 
 public class Program
 {
-    public static ProgramData programData = new ProgramData();
+    public static MachineData programData = new MachineData();
     public static Dictionary<int, List<Func<CommandTemplate>>> SixBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
     {
         [0b100101] = new List<Func<CommandTemplate>>() { () => new JMP() },
