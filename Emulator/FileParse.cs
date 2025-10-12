@@ -107,11 +107,6 @@ public class Program
                 commandBytes[0] = (byte)lineSpan.Slice2Char();
                 commandBytes[1] = (byte)lineSpan.Slice2Char();
 
-                if (line == ":10007000DEBFCDBF21E0A0E0B1E001C01D92A930FC" && i == 11)
-                {
-                    ;
-                }
-
                 CommandTemplate command = FindCommand(commandBytes);
                 parsedLines[lineIndex].commands.Add(command);
                 command.RunCommand(programData, commandBytes, ref lineSpan, ref i);

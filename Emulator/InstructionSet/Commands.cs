@@ -26,14 +26,14 @@ public class SREG
 {
     public byte SREGByte = 0;
     /*
-        C: Carry
-        Z: Zero
-        N: Negative 
-        V: Two's Complement
-        S: Sign
-        H: Half Carry
-        T: Transfer
-        I: Global
+        C: Carry                0
+        Z: Zero                 1
+        N: Negative             2
+        V: Two's Complement     3
+        S: Sign                 4
+        H: Half Carry           5
+        T: Transfer             6
+        I: Global               7
     */
 
     public void SetBit(byte index, bool bit)
@@ -42,7 +42,6 @@ public class SREG
 
         if (bit) SREGByte |= mask;
         else SREGByte &= (byte)~mask;
-        ;
     }
 }
 
@@ -192,62 +191,27 @@ public class SUBI() : CommandTemplate
 
 public class CPI() : CommandTemplate
 {
-    // CPI (Compare with Immediate)
-    // Opcode format: 0011 KKKK dddd KKKK
-    // High 4 bits (0011) reside in the upper nibble of commandBytes[1]
-    // dddd selects R16..R31 (add 16)
     public override bool ConfirmCommand(byte[] commandBytes) => true;
 
     public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
     {
-        byte highK = (byte)(commandBytes[1] & 0x0F);      // K high nibble
-        byte lowK  = (byte)(commandBytes[0] & 0x0F);      // K low nibble
-        byte dLow  = (byte)((commandBytes[0] >> 4) & 0x0F); // destination register low bits
-        byte rdIndex = (byte)(dLow + 16);                 // R16..R31
+        byte highK = (byte)(commandBytes[1] & 0b1111);
+        byte lowK = (byte)(commandBytes[0] & 0b1111);
+        byte dLow = (byte)((commandBytes[0] >> 4) & 0b111);
+        byte rdIndex = (byte)(dLow + 16); // AVR instruction set uses R16-R31 for this command               
         byte K = (byte)((highK << 4) | lowK);
 
         byte rdValue = program.Registers[rdIndex];
         int diff = rdValue - K;
         byte result = (byte)diff;
 
-
-        // SREG flag emulation (Z, N, V, S, C, H)
-        const int SREG_ADDR = 0x3F;
-        if (program.IOSpace != null && program.IOSpace.Length > SREG_ADDR)
-        {
-            byte sreg = program.IOSpace[SREG_ADDR];
-
-            // Helper to set/clear bit
-            static byte SetBit(byte value, int bit, bool set)
-            {
-                int mask = 1 << bit;
-                return set ? (byte)(value | mask) : (byte)(value & ~mask);
-            }
-
-            // Flags from AVR datasheet for CPI (same as CP):
-            // H: Half Carry
-            bool H = (((~rdValue & K) | (K & result) | (~rdValue & result)) & 0x08) != 0;
-            // V: Two's complement overflow
-            bool V = (((rdValue & ~K & ~result) | (~rdValue & K & result)) & 0x80) != 0;
-            // N: Negative
-            bool N = (result & 0x80) != 0;
-            // Z: Zero
-            bool Z = result == 0;
-            // C: Carry (borrow)
-            bool C = (((~rdValue & K) | (K & result) | (~rdValue & result)) & 0x80) != 0;
-            // S: Sign (N ^ V)
-            bool S = N ^ V;
-
-            // SREG bit order (7..0): I T H S V N Z C
-            sreg = SetBit(sreg, 5, H); // H
-            sreg = SetBit(sreg, 4, S); // S
-            sreg = SetBit(sreg, 3, V); // V
-            sreg = SetBit(sreg, 2, N); // N
-            sreg = SetBit(sreg, 1, Z); // Z
-            sreg = SetBit(sreg, 0, C); // C
-
-            program.IOSpace[SREG_ADDR] = sreg;
-        }
+        program.StatusRegister.SetBit(5, ((~(rdValue >> 3) & K >> 3) | (K >> 3 & result >> 3) | (result >> 3 & ~(rdValue >> 3))) != 0);
+        program.StatusRegister.SetBit(4, (program.StatusRegister.SREGByte >> 2 ^ program.StatusRegister.SREGByte >> 3) != 0);
+        program.StatusRegister.SetBit(3, (rdValue >> 7 & ~(K >> 7) & (~(result >> 7) | ~(rdValue >> 7)) & K >> 7 & result >> 7) != 0);
+        program.StatusRegister.SetBit(2, result >> 7 == 1);
+        program.StatusRegister.SetBit(1, result == 0);
+        program.StatusRegister.SetBit(0, Math.Abs(K) > Math.Abs(rdValue));
+        ;
 
         Console.WriteLine($"CPI R{rdIndex}, 0x{K:X2} (R{rdIndex}=0x{rdValue:X2}, result=0x{result:X2})");
 
@@ -324,4 +288,3 @@ public class STX() : CommandTemplate
         program.PC++;
     }
 }
-
