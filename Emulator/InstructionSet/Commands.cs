@@ -6,6 +6,47 @@ using SharedDomainTypes;
 
 public class ProgramData
 {
+    /// <summary>
+    /// Sets SREG flags (Z, N, V, S, C, H) in ioSpace[0x3F] according to the result of a subtraction (for CP/CPI/SUBI/etc).
+    /// </summary>
+    public void SetSREGFlags(byte rdValue, byte K, byte result)
+    {
+        const int SREG_ADDR = 0x3F;
+        if (ioSpace == null || ioSpace.Length <= SREG_ADDR) return;
+        byte sreg = ioSpace[SREG_ADDR];
+
+        // Helper to set/clear bit
+        static byte SetBit(byte value, int bit, bool set)
+        {
+            int mask = 1 << bit;
+            return set ? (byte)(value | mask) : (byte)(value & ~mask);
+        }
+
+        // Flags from AVR datasheet for CPI/CP/SUBI/SUB:
+        // H: Half Carry
+        bool H = (((~rdValue & K) | (K & result) | (~rdValue & result)) & 0x08) != 0;
+        // V: Two's complement overflow
+        bool V = (((rdValue & ~K & ~result) | (~rdValue & K & result)) & 0x80) != 0;
+        // N: Negative
+        bool N = (result & 0x80) != 0;
+        // Z: Zero
+        bool Z = result == 0;
+        // C: Carry (borrow)
+        bool C = (((~rdValue & K) | (K & result) | (~rdValue & result)) & 0x80) != 0;
+        // S: Sign (N ^ V)
+        bool S = N ^ V;
+
+        // SREG bit order (7..0): I T H S V N Z C
+        sreg = SetBit(sreg, 5, H); // H
+        sreg = SetBit(sreg, 4, S); // S
+        sreg = SetBit(sreg, 3, V); // V
+        sreg = SetBit(sreg, 2, N); // N
+        sreg = SetBit(sreg, 1, Z); // Z
+        sreg = SetBit(sreg, 0, C); // C
+
+        ioSpace[SREG_ADDR] = sreg;
+    }
+
     public int pc;
     public byte[] registers;
     public byte[] ioSpace;
@@ -164,6 +205,71 @@ public class SUBI() : CommandTemplate
     }
 }
 
+public class CPI() : CommandTemplate
+{
+    // CPI (Compare with Immediate)
+    // Opcode format: 0011 KKKK dddd KKKK
+    // High 4 bits (0011) reside in the upper nibble of commandBytes[1]
+    // dddd selects R16..R31 (add 16)
+    public override bool ConfirmCommand(byte[] commandBytes) => true;
+
+    public override void RunCommand(ProgramData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        byte highK = (byte)(commandBytes[1] & 0x0F);      // K high nibble
+        byte lowK  = (byte)(commandBytes[0] & 0x0F);      // K low nibble
+        byte dLow  = (byte)((commandBytes[0] >> 4) & 0x0F); // destination register low bits
+        byte rdIndex = (byte)(dLow + 16);                 // R16..R31
+        byte K = (byte)((highK << 4) | lowK);
+
+        byte rdValue = program.registers[rdIndex];
+        int diff = rdValue - K;
+        byte result = (byte)diff;
+
+
+        // SREG flag emulation (Z, N, V, S, C, H)
+        const int SREG_ADDR = 0x3F;
+        if (program.ioSpace != null && program.ioSpace.Length > SREG_ADDR)
+        {
+            byte sreg = program.ioSpace[SREG_ADDR];
+
+            // Helper to set/clear bit
+            static byte SetBit(byte value, int bit, bool set)
+            {
+                int mask = 1 << bit;
+                return set ? (byte)(value | mask) : (byte)(value & ~mask);
+            }
+
+            // Flags from AVR datasheet for CPI (same as CP):
+            // H: Half Carry
+            bool H = (((~rdValue & K) | (K & result) | (~rdValue & result)) & 0x08) != 0;
+            // V: Two's complement overflow
+            bool V = (((rdValue & ~K & ~result) | (~rdValue & K & result)) & 0x80) != 0;
+            // N: Negative
+            bool N = (result & 0x80) != 0;
+            // Z: Zero
+            bool Z = result == 0;
+            // C: Carry (borrow)
+            bool C = (((~rdValue & K) | (K & result) | (~rdValue & result)) & 0x80) != 0;
+            // S: Sign (N ^ V)
+            bool S = N ^ V;
+
+            // SREG bit order (7..0): I T H S V N Z C
+            sreg = SetBit(sreg, 5, H); // H
+            sreg = SetBit(sreg, 4, S); // S
+            sreg = SetBit(sreg, 3, V); // V
+            sreg = SetBit(sreg, 2, N); // N
+            sreg = SetBit(sreg, 1, Z); // Z
+            sreg = SetBit(sreg, 0, C); // C
+
+            program.ioSpace[SREG_ADDR] = sreg;
+        }
+
+        Console.WriteLine($"CPI R{rdIndex}, 0x{K:X2} (R{rdIndex}=0x{rdValue:X2}, result=0x{result:X2})");
+
+        program.pc++;
+    }
+}
+
 public class STX() : CommandTemplate
 {
     private enum Variant { None, X, XPostInc, XPreDec }
@@ -233,3 +339,4 @@ public class STX() : CommandTemplate
         program.pc++;
     }
 }
+
