@@ -34,7 +34,8 @@ public class Program
         [0b1110] = new List<Func<CommandTemplate>>() { () => new LDI() },
         [0b1100] = new List<Func<CommandTemplate>>() { () => new RJMP() },
         [0b0101] = new List<Func<CommandTemplate>>() { () => new SUBI() },
-        [0b0011] = new List<Func<CommandTemplate>>() { () => new CPI()}
+        [0b0011] = new List<Func<CommandTemplate>>() { () => new CPI() },
+        [0b0000] = new List<Func<CommandTemplate>>() { () => new CPC() },
     };
 
     public static bool VerifyLineStart(int lineStart)

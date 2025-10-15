@@ -1,6 +1,8 @@
 using System.Configuration.Assemblies;
 using System.Data;
+using System.IO.Compression;
 using System.Reflection.Metadata.Ecma335;
+using System.Security.Cryptography;
 using Emulator;
 using SharedDomainTypes;
 
@@ -205,15 +207,46 @@ public class CPI() : CommandTemplate
         int diff = rdValue - K;
         byte result = (byte)diff;
 
-        program.StatusRegister.SetBit(5, ((~(rdValue >> 3) & K >> 3) | (K >> 3 & result >> 3) | (result >> 3 & ~(rdValue >> 3))) != 0);
-        program.StatusRegister.SetBit(4, (program.StatusRegister.SREGByte >> 2 ^ program.StatusRegister.SREGByte >> 3) != 0);
-        program.StatusRegister.SetBit(3, (rdValue >> 7 & ~(K >> 7) & (~(result >> 7) | ~(rdValue >> 7)) & K >> 7 & result >> 7) != 0);
+        program.StatusRegister.SetBit(5, (((~(rdValue >> 3) & K >> 3) | (K >> 3 & result >> 3) | (result >> 3 & ~(rdValue >> 3))) & 0b1) != 0);
+        program.StatusRegister.SetBit(4, ((program.StatusRegister.SREGByte >> 2 ^ program.StatusRegister.SREGByte >> 3) & 0b1) != 0);
+        program.StatusRegister.SetBit(3, ((rdValue >> 7 & ~(K >> 7) & (~(result >> 7) | ~(rdValue >> 7)) & K >> 7 & result >> 7) & 0b1) != 0);
         program.StatusRegister.SetBit(2, result >> 7 == 1);
         program.StatusRegister.SetBit(1, result == 0);
         program.StatusRegister.SetBit(0, Math.Abs(K) > Math.Abs(rdValue));
-        ;
 
         Console.WriteLine($"CPI R{rdIndex}, 0x{K:X2} (R{rdIndex}=0x{rdValue:X2}, result=0x{result:X2})");
+
+        program.PC++;
+    }
+}
+
+public class CPC() : CommandTemplate
+{
+    public override bool ConfirmCommand(byte[] commandBytes) => (commandBytes[1] >> 2 & 0b01) == 0b01;
+
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        byte highRBit = (byte)(commandBytes[1] >> 1 & 0b1);
+        byte highDBit = (byte)(commandBytes[1] & 0b1);
+
+        byte dBytes = (byte)(commandBytes[0] >> 4);
+        byte rBytes = (byte)(commandBytes[0] & 0b1111);
+
+        byte dAddress = (byte)(highDBit << 4 | dBytes);
+        byte rAddress = (byte)(highRBit << 4 | rBytes);
+
+        byte carry = (byte)(program.StatusRegister.SREGByte & 0b1);
+        byte result = (byte)(program.Registers[dAddress] - program.Registers[rAddress] - carry);
+        byte rdValue = program.Registers[dAddress];
+        byte rrValue = program.Registers[rAddress];
+
+        program.StatusRegister.SetBit(5, (~(rdValue >> 3) & (rrValue >> 3) | (rrValue >> 3) & (result >> 3) | (result >> 3) & ~(rdValue >> 3) & 0b1) == 1);
+        program.StatusRegister.SetBit(4, (program.StatusRegister.SREGByte >> 2 ^ program.StatusRegister.SREGByte >> 3) == 1);
+        program.StatusRegister.SetBit(2, result >> 7 == 1);
+        program.StatusRegister.SetBit(1, result == 0);
+        program.StatusRegister.SetBit(0, (Math.Abs(rrValue) + carry) > Math.Abs(rdValue));
+
+        Console.WriteLine($"CPC R{dAddress} - R{rAddress} - {carry}");
 
         program.PC++;
     }
