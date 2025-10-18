@@ -17,11 +17,16 @@ public class LineFormat
 public class Program
 {
     public static MachineData programData = new MachineData();
+    public static Dictionary<int, List<Func<CommandTemplate>>> SevenBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
+    {
+        [0b1001001] = new List<Func<CommandTemplate>>() { () => new OUT() },
+    };
     public static Dictionary<int, List<Func<CommandTemplate>>> SixBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
     {
-        [0b100101] = new List<Func<CommandTemplate>>() { () => new JMP() },
+        [0b100101] = new List<Func<CommandTemplate>>() { () => new JMP(), () => new CALL() },
         [0b001001] = new List<Func<CommandTemplate>>() { () => new EOR() },
         [0b100100] = new List<Func<CommandTemplate>>() { () => new STX() },
+        [0b111101] = new List<Func<CommandTemplate>>() { () => new BRBC() },
     };
 
     public static Dictionary<int, List<Func<CommandTemplate>>> FiveBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
@@ -105,7 +110,11 @@ public class Program
 
             for (int i = 0; i < parsedLines[lineIndex].byteCount; i += 2)
             {
-                commandBytes[0] = (byte)lineSpan.Slice2Char();
+                if (line == ":100090001F920F920FB60F9211242F933F938F93BD")
+                {
+                    ;
+                }
+                
                 commandBytes[1] = (byte)lineSpan.Slice2Char();
 
                 CommandTemplate command = FindCommand(commandBytes);

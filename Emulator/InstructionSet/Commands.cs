@@ -252,6 +252,33 @@ public class CPC() : CommandTemplate
     }
 }
 
+public class BRBC() : CommandTemplate
+{
+    public override bool ConfirmCommand(byte[] commandBytes) => true; 
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        byte SREGIndex = (byte)(commandBytes[1] & 0b111);
+        byte highK = (byte)(commandBytes[0] & 0b11);
+        byte lowK = (byte)(commandBytes[1] >> 3);
+
+        bool isNegative = highK >> 1 == 1;
+        byte k = (byte)((highK << 5) | lowK);
+
+        if (isNegative) k = (byte)-k;
+
+        if (program.StatusRegister.SREGByte >> SREGIndex == 0)
+        {
+            program.PC += k + 1;
+        }
+        else
+        {
+            program.PC++;
+        }
+
+        Console.WriteLine($"BRBC {SREGIndex}, {k}");
+    }
+}
+
 public class STX() : CommandTemplate
 {
     private enum Variant { None, X, XPostInc, XPreDec }
@@ -319,5 +346,23 @@ public class STX() : CommandTemplate
         Console.WriteLine($"STX put register {registerAddress} into dataspace {x}");
 
         program.PC++;
+    }
+}
+
+public class CALL() : CommandTemplate
+{
+    public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[0] >> 1) & 0b111) == 0b111;
+
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        ushort lastByte = fileSpan.Slice2Char();
+        ushort nextByte = fileSpan.Slice2Char();
+
+        int address = (byte)(commandBytes[1] & 1) << 22 | (byte)(commandBytes[0] >> 4) << 17 | (byte)(commandBytes[0] & 1) << 16 | (byte)(nextByte) << 8 | (byte)lastByte;
+        commandIndex += 2;
+
+        program.PC = address;
+
+        Console.WriteLine($"CALL {address}");
     }
 }
