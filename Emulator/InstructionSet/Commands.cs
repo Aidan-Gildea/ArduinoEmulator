@@ -14,6 +14,7 @@ public class MachineData
     public byte[] DataSpace;
 
     public SREG StatusRegister = new SREG();
+    public Stack<byte> Stack = new Stack<byte>();
 
     public MachineData()
     {
@@ -364,5 +365,22 @@ public class CALL() : CommandTemplate
         program.PC = address;
 
         Console.WriteLine($"CALL {address}");
+    }
+}
+
+public class PUSH() : CommandTemplate
+{
+    public override bool ConfirmCommand(byte[] commandBytes) => (commandBytes[0] & 0b1111) == 0b1111;
+
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    {
+        byte highR = (byte)(commandBytes[1] & 0b1);
+        byte lowR = (byte)(commandBytes[0] >> 4);
+
+        byte registerAddress = (byte)(highR << 4 | lowR);
+
+        program.Stack.Push(program.Registers[registerAddress]);
+
+        program.PC++;
     }
 }
