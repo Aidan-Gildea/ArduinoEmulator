@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomTypeTesting", "Custom
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SREGTesting", "SREGTesting\SREGTesting.csproj", "{34F2121A-2AB2-49D0-81BD-786EA9CE78B5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "API", "API\API.csproj", "{631A5162-9BE4-4540-88B7-DD5F5BA17593}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,18 @@ Global
 		{34F2121A-2AB2-49D0-81BD-786EA9CE78B5}.Release|x64.Build.0 = Release|Any CPU
 		{34F2121A-2AB2-49D0-81BD-786EA9CE78B5}.Release|x86.ActiveCfg = Release|Any CPU
 		{34F2121A-2AB2-49D0-81BD-786EA9CE78B5}.Release|x86.Build.0 = Release|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Debug|x64.Build.0 = Debug|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Debug|x86.Build.0 = Debug|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Release|Any CPU.Build.0 = Release|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Release|x64.ActiveCfg = Release|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Release|x64.Build.0 = Release|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Release|x86.ActiveCfg = Release|Any CPU
+		{631A5162-9BE4-4540-88B7-DD5F5BA17593}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
