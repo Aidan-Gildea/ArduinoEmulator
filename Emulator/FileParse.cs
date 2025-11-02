@@ -1,4 +1,5 @@
-﻿using System.IO.Compression;
+﻿using System.ComponentModel.Design;
+using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
@@ -14,15 +15,39 @@ public class LineFormat
     public ushort checksum;
 };
 
+
 public class Program
 {
     public static MachineData programData = new MachineData();
-    public static Dictionary<int, List<Func<CommandTemplate>>> SixBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
+    public interface IEmulatorService
     {
-        [0b100101] = new List<Func<CommandTemplate>>() { () => new JMP() },
-        [0b001001] = new List<Func<CommandTemplate>>() { () => new EOR() },
-        [0b100100] = new List<Func<CommandTemplate>>() { () => new STX() },
-    };
+        public int GetProgramCounter()
+        {
+            return programData.PC;
+        }
+        public List<byte> GetStatusRegisterBits()
+        {
+            List<byte> StatusRegisterBits = new List<byte>();
+
+            for (int i = 0; i < 8; i++)
+            {
+                StatusRegisterBits.Add((byte)((programData.StatusRegister.SREGByte >> i) & 0b1));
+            }
+
+            return StatusRegisterBits;
+        }
+
+        
+    } 
+
+   public static Dictionary<int, List<Func<CommandTemplate>>> SixBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
+   {
+       [0b100101] = new List<Func<CommandTemplate>>() { () => new JMP(), () => new CALL() },
+       [0b001001] = new List<Func<CommandTemplate>>() { () => new EOR() },
+       [0b100100] = new List<Func<CommandTemplate>>() { () => new STX() },
+       [0b000001] = new List<Func<CommandTemplate>>() { () => new CPC() },
+       [0b111101] = new List<Func<CommandTemplate>>() { () => new BRBC() },
+   };
 
     public static Dictionary<int, List<Func<CommandTemplate>>> FiveBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
     {
@@ -34,7 +59,7 @@ public class Program
         [0b1110] = new List<Func<CommandTemplate>>() { () => new LDI() },
         [0b1100] = new List<Func<CommandTemplate>>() { () => new RJMP() },
         [0b0101] = new List<Func<CommandTemplate>>() { () => new SUBI() },
-        [0b0011] = new List<Func<CommandTemplate>>() { () => new CPI()}
+        [0b0011] = new List<Func<CommandTemplate>>() { () => new CPI() }
     };
 
     public static bool VerifyLineStart(int lineStart)
@@ -43,7 +68,7 @@ public class Program
         return expectedLineStart == lineStart;
     }
 
-    public static CommandTemplate FindCommand(byte[] commandBytes)
+    public static CommandTemplate FindCommand(byte[] commandBytes, string fullLine, ref ReadOnlySpan<char> line)
     {
         List<Func<CommandTemplate>>? Commands = new List<Func<CommandTemplate>>();
         if (SixBitOpCodes.TryGetValue(commandBytes[1] >> 2, out Commands))
@@ -79,11 +104,28 @@ public class Program
                 }
             }
         }
-        
+
         throw new ArgumentException("Command does not exist");
     }
     public static void Main()
     {
+        // Create an API client. Base URL can be overridden via environment variable API_BASE (e.g. "https://localhost:5001/")
+        string baseUrl = Environment.GetEnvironmentVariable("API_BASE") ?? "http://localhost:5024";
+        var api = new ApiClient(baseUrl);
+
+        // Call a simple endpoint to verify connectivity
+        try
+        {
+            string hi = api.GetHiAsync().GetAwaiter().GetResult();
+            Console.WriteLine($"API responded: {hi}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"API call failed: {ex.Message}");
+        }
+
+        ;
+
         string[] fileData = File.ReadAllLines("/Users/liz/Documents/PlatformIO/ArduinoPlayground/.pio/build/ATmega328P/firmware.hex");
 
         LineFormat[] parsedLines = new LineFormat[fileData.Length];
@@ -104,20 +146,15 @@ public class Program
 
             for (int i = 0; i < parsedLines[lineIndex].byteCount; i += 2)
             {
-                commandBytes[0] = (byte)lineSpan.Slice2Char();
-                commandBytes[1] = (byte)lineSpan.Slice2Char();
+                commandBytes[0] = (byte)lineSpan.Slice2Char();;
+                commandBytes[1] = (byte)lineSpan.Slice2Char();;
 
-                if (line == ":10007000DEBFCDBF21E0A0E0B1E001C01D92A930FC" && i == 11)
-                {
-                    ;
-                }
-
-                CommandTemplate command = FindCommand(commandBytes);
+                CommandTemplate command = FindCommand(commandBytes, line, ref lineSpan);
                 parsedLines[lineIndex].commands.Add(command);
                 command.RunCommand(programData, commandBytes, ref lineSpan, ref i);
             }
-            parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char();  
+            parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char();
         }
-        
+
     }
 }
