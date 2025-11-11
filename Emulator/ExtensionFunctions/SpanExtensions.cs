@@ -3,7 +3,7 @@ public static class SpanExtensionFunctons
     public static uint ConvertSliceToDecimal(this ref ReadOnlySpan<char> dataSlice)
     {
         if (dataSlice[0] == ':') return dataSlice[0];
-        
+
         uint resultingNumber = 0;
 
         foreach (var character in dataSlice)
@@ -20,6 +20,7 @@ public static class SpanExtensionFunctons
         }
         return resultingNumber;
     }
+    
     public static int Slice1Char(this ref ReadOnlySpan<char> data)
     {
         const int SLICE_SIZE = 1;
