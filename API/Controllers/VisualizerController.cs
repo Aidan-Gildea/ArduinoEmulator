@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Emulator;
 using System.Reflection.PortableExecutable;
+using System.Text.Json;
 
 namespace API.Controllers;
+
+public record ByteArrayResponse (int[] data);
 
 [ApiController]
 [Route("[controller]")]
@@ -11,17 +14,17 @@ public class Visualizer : ControllerBase
     List<InstructionData> instructions = new List<InstructionData>();
     private static byte[] registers = new byte[32];
 
-    [HttpPost("PostRegisterData")]
-    public void PostRegisterData(byte[] Registers)
+    [HttpGet("GetRegisterData")]
+    public IActionResult GetRegisterData()
     {
-        registers = Registers;
-        
+        return Ok(new ByteArrayResponse(registers.Select(b => (int)b).ToArray()));
     }
 
-    [HttpGet("GetRegisterData")]
-    public byte[] GetRegisterData()
+    [HttpPost("PostRegisterData")]
+    public IActionResult PostRegisterData([FromBody] byte[] Registers)
     {
-        return registers;
+        registers = Registers;
+        return Ok(Registers);
     }
 
     [HttpPost("PostHEXInstruction")]

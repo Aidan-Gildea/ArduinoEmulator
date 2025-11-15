@@ -4,7 +4,9 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Text.Json.Nodes;
+using System.Text;
 
 namespace Emulator;
 
@@ -23,6 +25,7 @@ public class Program
 {
     public static Dictionary<int, char> NumberToLetter = new Dictionary<int, char>()
     {
+        [0] = '0',
         [1] = '1',
         [2] = '2',
         [3] = '3',
@@ -144,9 +147,8 @@ public class Program
 
         throw new ArgumentException("Command does not exist");
     }
-    public static void Main()
+    public static async Task Main()
     {
-        // Create an API client. Base URL can be overridden via environment variable API_BASE (e.g. "https://localhost:5001/")
         string baseUrl = Environment.GetEnvironmentVariable("API_BASE") ?? "http://localhost:5024";
         ApiClient api = new ApiClient(baseUrl);
 
@@ -178,14 +180,19 @@ public class Program
                 string instructionHex = ConvertAsciiToHex(commandBytes[1]) + ConvertAsciiToHex(commandBytes[0]);
                 string serializedHex = JsonSerializer.Serialize(instructionHex);
 
-                //client.PostAsync("PostHEXInstruction", (serializedHex));
+
 
                 CommandTemplate command = FindCommand(commandBytes, line, ref lineSpan);
                 parsedLines[lineIndex].commands.Add(command);
                 command.RunCommand(programData, commandBytes, ref lineSpan, ref i);
-
             }
+            ReadOnlySpan<byte> dataSpan = programData.DataSpace.AsSpan<byte>();
+            ReadOnlySpan<byte> registerSpan = dataSpan.Slice(0, 32);
+
             parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char(); 
+
+            await client.PostAsync("http://localhost:5024/Visualizer/PostRegisterData", new System.Net.Http.StringContent(JsonSerializer.Serialize(registerSpan.ToArray()), Encoding.UTF8, "application/json"));
+           
         }
 
     }
