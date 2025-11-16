@@ -13,6 +13,8 @@ function App() {
       <h1 className="register-title">REGISTER VALUES</h1>
       <Registers />
     </div>
+    <ul> <li> </li><div className="register-box-container"></div></ul>
+    
     </>
   )
 }
