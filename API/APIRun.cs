@@ -13,6 +13,18 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<MachineData>();
 
+// Allow the ProgramVisualizer dev server to call this API (CORS)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DevAllow", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -24,6 +36,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Enable CORS policy early in the pipeline
+app.UseCors("DevAllow");
 
 app.UseAuthorization();
 

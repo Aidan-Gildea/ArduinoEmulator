@@ -2,10 +2,43 @@ using Microsoft.AspNetCore.Mvc;
 using Emulator;
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace API.Controllers;
 
-public record ByteArrayResponse (int[] data);
+public class ByteArrayAsNumbersConverter : JsonConverter<byte[]>
+{
+    public override byte[] Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var values = new List<byte>();
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndArray)
+                break;
+
+            if (reader.TokenType == JsonTokenType.Number)
+                values.Add(reader.GetByte());
+        }
+
+        return values.ToArray();
+    }
+
+    public override void Write(Utf8JsonWriter writer, byte[] value, JsonSerializerOptions options)
+    {
+        writer.WriteStartArray();
+
+        foreach (var b in value)
+            writer.WriteNumberValue(b);
+
+        writer.WriteEndArray();
+    }
+}
+
+public record ByteArrayResponse(
+    [property: JsonConverter(typeof(ByteArrayAsNumbersConverter))] byte[] data
+);
+
 
 [ApiController]
 [Route("[controller]")]
@@ -14,11 +47,11 @@ public class Visualizer : ControllerBase
     List<InstructionData> instructions = new List<InstructionData>();
     private static byte[] registers = new byte[32];
 
-    [HttpGet("GetRegisterData")]
-    public IActionResult GetRegisterData()
-    {
-        return Ok(new ByteArrayResponse(registers.Select(b => (int)b).ToArray()));
-    }
+        [HttpGet("GetRegisterData")]
+        public IActionResult GetRegisterData()
+        {
+            return Ok(new ByteArrayResponse(registers));
+        }
 
     [HttpPost("PostRegisterData")]
     public IActionResult PostRegisterData([FromBody] byte[] Registers)
