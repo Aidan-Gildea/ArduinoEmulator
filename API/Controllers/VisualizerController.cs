@@ -69,7 +69,7 @@ public class Visualizer : ControllerBase
     }
 
     [HttpGet("GetHexInstruction")]
-    public IActionResult GetInstruction()
+    public IActionResult GetHexInstruction()
     {
         return Ok(hexInstruction);
     }

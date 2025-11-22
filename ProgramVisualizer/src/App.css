@@ -132,7 +132,8 @@
   color: #111;
 }
 
-.information-panel {
+.information-panel 
+{
   flex: 1;
   box-sizing: border-box;
   border: 3px solid black;
@@ -150,7 +151,6 @@
   border: 3px solid black;
   border-left: none;
   border-top: none;
-  border-right: none;
   background: var(--header-background-color);  
 }
 
@@ -168,10 +168,36 @@
 .instruction-information-panel
 {
   flex: 1;
-  border: 10px solid black;
+  box-sizing: border-box;
+  border: 3px solid rgb(0, 0, 0);
   border-top: none;
-  background: #fa82ec;
+  background: #ffffff;
   right: 0px;
   border-left: none; /* prevents double border where it meets the stack panel */
 }
 
+.information-description-title-format
+{
+  position: relative;
+  text-align: left;
+  margin-left: 5px;
+  color: rgb(0, 0, 0);
+  font-weight: 800;
+  font-size:50px;
+}
+
+.information-description-panel-format
+{
+  position: relative;
+  border-bottom: 3px solid black;
+  height: var(--header-height);
+}
+
+.loading-overlay
+{
+  position: relative;
+  text-align: center;
+  font-size: 80px;
+  color: black;
+  font-weight: 800;
+}

@@ -20,15 +20,21 @@ function App() {
           </div>
             <Registers />
         </div>
-        <div className="information-panel">
           <div className="instruction-title-container">
-            <h1 className="instruction-title">INSTRUCTIONS</h1>
+            <h1 className="instruction-title">INSTRUCTION INFORMATION</h1>
           </div>
 
           <div className="instruction-information-panel">
-            
+            <div className="information-description-panel-format">
+              <h1 className="information-description-title-format">BINARY REPRESENTATION:</h1>
+            </div>
+            <div className="information-description-panel-format">
+              <h1 className="information-description-title-format">HEX REPRESENTATION:</h1>
+            </div>
+            <div className="information-description-panel-format">
+              <h1 className="information-description-title-format">ASSEMBLY REPRESENTATION:</h1>
+            </div>
           </div>
-        </div>
       </div>
     </>
   );
