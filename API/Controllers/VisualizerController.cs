@@ -3,6 +3,7 @@ using Emulator;
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations;
 
 namespace API.Controllers;
 
@@ -46,12 +47,13 @@ public class Visualizer : ControllerBase
 {
     List<InstructionData> instructions = new List<InstructionData>();
     private static byte[] registers = new byte[32];
+    private static string hexInstruction = "Instructon not available.";
 
-        [HttpGet("GetRegisterData")]
-        public IActionResult GetRegisterData()
-        {
-            return Ok(new ByteArrayResponse(registers));
-        }
+    [HttpGet("GetRegisterData")]
+    public IActionResult GetRegisterData()
+    {
+        return Ok(new ByteArrayResponse(registers));
+    }
 
     [HttpPost("PostRegisterData")]
     public IActionResult PostRegisterData([FromBody] byte[] Registers)
@@ -62,6 +64,12 @@ public class Visualizer : ControllerBase
 
     [HttpPost("PostHEXInstruction")]
     public IActionResult PostHEXInstruction([FromBody] string hexInstruction)
+    {
+        return Ok(hexInstruction);
+    }
+
+    [HttpGet("GetHexInstruction")]
+    public IActionResult GetInstruction()
     {
         return Ok(hexInstruction);
     }

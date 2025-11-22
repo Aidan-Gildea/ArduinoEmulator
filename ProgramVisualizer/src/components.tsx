@@ -66,18 +66,14 @@ const Registers: React.FC = () => {
 
     return (
         <div>
-            <ul>
-                <div className="register-box-container">
-                    <div className="register-grid" role="list">
-                        {registers.map((r, i) => (
-                            <div key={i} className="register-box" role="listitem" aria-label={`Register ${i}`}>
-                                <div className="r-label">R{i}</div>
-                                <div className="r-value">{'0x' + (Number(r) & 0xff).toString(16).padStart(2, '0').toUpperCase()}</div>
-                            </div>
-                        ))}
+            <div className="register-grid" role="list">
+                {registers.map((r, i) => (
+                    <div key={i} className="register-box" role="listitem" aria-label={`Register ${i}`}>
+                        <div className="r-label">R{i}</div>
+                        <div className="r-value">{'0x' + (Number(r) & 0xff).toString(16).padStart(2, '0').toUpperCase()}</div>
                     </div>
-                </div>
-            </ul>
+                ))}
+            </div>
         </div>
     );
 };

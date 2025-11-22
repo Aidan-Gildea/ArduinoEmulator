@@ -176,7 +176,7 @@ public class Program
                 commandBytes[1] = (byte)lineSpan.Slice2Char();
 
                 string instructionHex = ConvertAsciiToHex(commandBytes[1]) + ConvertAsciiToHex(commandBytes[0]);
-                //string serializedHex = JsonSerializer.Serialize(instructionHex);
+                string serializedHex = JsonSerializer.Serialize(instructionHex);
 
                 CommandTemplate command = FindCommand(commandBytes, line, ref lineSpan);
                 parsedLines[lineIndex].commands.Add(command);

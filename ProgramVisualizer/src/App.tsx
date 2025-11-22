@@ -5,18 +5,34 @@ function App() {
 
   return (
     <>
-    <div className="stack-panel-container"></div>
-        <div className="stack-container">
-          <h1 className="stack-title">STACK</h1>
+      <div className="left-side-panel">
+        <div className="stack-panel">
+          <div className="stack-title-container">
+            <h1 className="stack-title">STACK</h1>
+          </div>
         </div>
-    <div className="register-container">
-      <h1 className="register-title">REGISTER VALUES</h1>
-      <Registers />
-    </div>
-    <ul> <li> </li><div className="register-box-container"></div></ul>
-    
+      </div>
+
+      <div className="right-side-panel">
+        <div className="register-panel">
+          <div className="register-title-container">
+            <h1 className="register-title">REGISTER VALUES</h1>
+          </div>
+            <Registers />
+        </div>
+        <div className="information-panel">
+          <div className="instruction-title-container">
+            <h1 className="instruction-title">INSTRUCTIONS</h1>
+          </div>
+
+          <div className="instruction-information-panel">
+            
+          </div>
+        </div>
+      </div>
     </>
-  )
+  );
+
 }
 
 export default App
