@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Text.Json.Nodes;
 using System.Text;
+using System.Diagnostics.Tracing;
 
 namespace Emulator;
 
@@ -19,65 +20,8 @@ public class LineFormat
     public ushort checksum;
 };
 
-public class Program
+public class FileParse
 {
-    public static Dictionary<int, char> NumberToLetter = new Dictionary<int, char>()
-    {
-        [0] = '0',
-        [1] = '1',
-        [2] = '2',
-        [3] = '3',
-        [4] = '4',
-        [5] = '5',
-        [6] = '6',
-        [7] = '7',
-        [8] = '8',
-        [9] = '9',
-        [10] = 'A',
-        [11] = 'B',
-        [12] = 'C',
-        [13] = 'D',
-        [14] = 'E',
-        [15] = 'F'
-    };
-
-    public static string ConvertAsciiToHexRecursion(int number, int quotient, int remainder)
-    {
-        if (quotient == 0) return $"{NumberToLetter[remainder]}";
-
-        string resultingString = ConvertAsciiToHexRecursion(number, quotient / 16, quotient % 16);
-
-        resultingString += $"{NumberToLetter[remainder]}";
-
-        return resultingString;
-    }
-    public static string ConvertAsciiToHex(int number)
-    {
-        return ConvertAsciiToHexRecursion(number, number / 16, number % 16);
-    }
-
-    public static MachineData programData = new MachineData();
-    public interface IEmulatorService
-    {
-        public int GetProgramCounter()
-        {
-            return programData.PC;
-        }
-        public List<byte> GetStatusRegisterBits()
-        {
-            List<byte> StatusRegisterBits = new List<byte>();
-
-            for (int i = 0; i < 8; i++)
-            {
-                StatusRegisterBits.Add((byte)((programData.StatusRegister.SREGByte >> i) & 0b1));
-            }
-
-            return StatusRegisterBits;
-        }
-
-
-    }
-
     public static Dictionary<int, List<Func<CommandTemplate>>> SixBitOpCodes = new Dictionary<int, List<Func<CommandTemplate>>>()
     {
         [0b100101] = new List<Func<CommandTemplate>>() { () => new JMP(), () => new CALL() },
@@ -100,15 +44,10 @@ public class Program
         [0b0011] = new List<Func<CommandTemplate>>() { () => new CPI() }
     };
 
-    public static bool VerifyLineStart(int lineStart)
-    {
-        const char expectedLineStart = ':';
-        return expectedLineStart == lineStart;
-    }
-
-    public static CommandTemplate FindCommand(byte[] commandBytes, string fullLine, ref ReadOnlySpan<char> line)
+    public static CommandTemplate FindCommand(byte[] commandBytes)
     {
         List<Func<CommandTemplate>>? Commands = new List<Func<CommandTemplate>>();
+
         if (SixBitOpCodes.TryGetValue(commandBytes[1] >> 2, out Commands))
         {
             foreach (var item in Commands)
@@ -145,51 +84,20 @@ public class Program
 
         throw new ArgumentException("Command does not exist");
     }
-    public static async Task Main()
+    
+    public MachineData ParseCommand(CommandTemplate command, string inlineHex, int linePosition, MachineData previousState)
     {
-        string baseUrl = Environment.GetEnvironmentVariable("API_BASE") ?? "http://localhost:5024";
-        ApiClient api = new ApiClient(baseUrl);
+        ReadOnlySpan<char> instructionHexSpan = inlineHex.AsSpan(linePosition);
 
-        HttpClient client = new HttpClient();
-
-        string[] fileData = File.ReadAllLines("/Users/liz/Documents/PlatformIO/ArduinoPlayground/.pio/build/ATmega328P/firmware.hex");
-
-        LineFormat[] parsedLines = new LineFormat[fileData.Length];
-        int lineIndex = 0;
+        MachineData newState = previousState; // Made for ease of readibility 
 
         byte[] commandBytes = new byte[2];
 
-        foreach (var line in fileData)
-        {
-            ReadOnlySpan<char> lineSpan = line.AsSpan();
-            parsedLines[lineIndex] = new LineFormat();
+        commandBytes[0] = (byte)instructionHexSpan.Slice2Char();
+        commandBytes[1] = (byte)instructionHexSpan.Slice2Char();
 
-            if (!VerifyLineStart(lineSpan.Slice1Char())) throw new ArgumentException("Line start does not match expected line start.");
-
-            parsedLines[lineIndex].byteCount = lineSpan.Slice2Char();
-            parsedLines[lineIndex].address = lineSpan.Slice4Char();
-            parsedLines[lineIndex].recordType = lineSpan.Slice2Char();
-
-            for (int i = 0; i < parsedLines[lineIndex].byteCount; i += 2)
-            {
-                commandBytes[0] = (byte)lineSpan.Slice2Char(); ;
-                commandBytes[1] = (byte)lineSpan.Slice2Char();
-
-                string instructionHex = ConvertAsciiToHex(commandBytes[1]) + ConvertAsciiToHex(commandBytes[0]);
-                string serializedHex = JsonSerializer.Serialize(instructionHex);
-
-                CommandTemplate command = FindCommand(commandBytes, line, ref lineSpan);
-                parsedLines[lineIndex].commands.Add(command);
-                command.RunCommand(programData, commandBytes, ref lineSpan, ref i);
-            }
-            ReadOnlySpan<byte> dataSpan = programData.DataSpace.AsSpan<byte>();
-            ReadOnlySpan<byte> registerSpan = dataSpan.Slice(0, 32);
-
-            parsedLines[lineIndex].checksum = (byte)lineSpan.Slice2Char(); 
-
-            await client.PostAsync("http://localhost:5024/Visualizer/PostRegisterData", new System.Net.Http.StringContent(JsonSerializer.Serialize(registerSpan.ToArray()), Encoding.UTF8, "application/json"));
-           
-        }
-
+        command.RunCommand(newState, commandBytes, ref instructionHexSpan);
+        
+        return newState;
     }
 }

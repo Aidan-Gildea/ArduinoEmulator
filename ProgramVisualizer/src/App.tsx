@@ -1,7 +1,17 @@
 import './App.css'
-import Registers from './components';
+import { Registers } from './components';
+import { HexInstruction } from './components';
+import { UploadFileButton } from './components';
+import { useState } from 'react';
 
 function App() {
+  const [fileContent, setFileContent] = useState<string[]>([]);
+  const [fileName, setFileName] = useState<string>('');
+
+  const handleFileLoad = (content: string[], name: string) => {
+    setFileContent(content);
+    setFileName(name);
+  };
 
   return (
     <>
@@ -14,6 +24,11 @@ function App() {
       </div>
 
       <div className="right-side-panel">
+
+        <button className="step-next-button">STEP NEXT</button>
+
+        <UploadFileButton onFileLoad={handleFileLoad} />
+      
         <div className="register-panel">
           <div className="register-title-container">
             <h1 className="register-title">REGISTER VALUES</h1>
@@ -25,9 +40,7 @@ function App() {
           </div>
 
           <div className="instruction-information-panel">
-            <div className="information-description-panel-format">
-              <h1 className="information-description-title-format">BINARY REPRESENTATION:</h1>
-            </div>
+            <HexInstruction />
             <div className="information-description-panel-format">
               <h1 className="information-description-title-format">HEX REPRESENTATION:</h1>
             </div>

@@ -45,40 +45,11 @@ public record ByteArrayResponse(
 [Route("[controller]")]
 public class Visualizer : ControllerBase
 {
-    List<InstructionData> instructions = new List<InstructionData>();
-    private static byte[] registers = new byte[32];
-    private static string hexInstruction = "Instructon not available.";
+    FIleParse fileParse = new FIleParse();
 
-    [HttpGet("GetRegisterData")]
-    public IActionResult GetRegisterData()
+    [HttpPost("ParseInstruction")]
+    public MachineData ParseInstruction(CommandTemplate command, string instructionHex, int linePosition, MachineData previousState)
     {
-        return Ok(new ByteArrayResponse(registers));
-    }
-
-    [HttpPost("PostRegisterData")]
-    public IActionResult PostRegisterData([FromBody] byte[] Registers)
-    {
-        registers = Registers;
-        return Ok(Registers);
-    }
-
-    [HttpPost("PostHEXInstruction")]
-    public IActionResult PostHEXInstruction([FromBody] string hexInstruction)
-    {
-        return Ok(hexInstruction);
-    }
-
-    [HttpGet("GetHexInstruction")]
-    public IActionResult GetHexInstruction()
-    {
-        return Ok(hexInstruction);
-    }
-
-    [HttpGet("GetHi")]
-    public string GetHi()
-    {
-        return "Hi";
+        return fileParse.ParseCommand(command, instructionHex, linePosition, previousState);
     }
 }
-
-record InstructionData(string instructionHEX);

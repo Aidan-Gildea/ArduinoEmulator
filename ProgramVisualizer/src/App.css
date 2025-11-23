@@ -196,8 +196,79 @@
 .loading-overlay
 {
   position: relative;
-  text-align: center;
+  text-align:center;
   font-size: 80px;
   color: black;
   font-weight: 800;
+  box-sizing: border-box;
+  border-bottom: 3px solid black;
+}
+
+.step-next-button {
+  position: fixed;
+  width: 250px;
+  right: 10px;
+  top: 15px;
+  height: 75px;
+  z-index: 1;
+
+  font-size: 40px;
+  font-weight: 800;
+
+  background: #ffffff;
+  color: rgb(0, 0, 0);
+
+  border: 3px solid black;
+  border-radius: 10px;
+
+  /* 3D effect */
+  box-shadow: 0 5px 0px #d8d3d3;
+
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.step-next-button:hover {
+  background: #ffffff;
+}
+
+.step-next-button:active {
+  /* pressed effect */
+  box-shadow: 0 2px 0px #e5e1e1;
+  transform: translateY(5px);
+}
+
+.upload-file-button
+{
+  position: fixed;
+  width: 250px;
+  left: calc(var(--stack-panel-width) + 10px);
+  top: 15px;
+  height: 75px;
+  z-index: 1;
+
+  font-size: 34px;
+  font-weight: 800;
+
+  background: #ffffff;
+  color: rgb(0, 0, 0);
+
+  border: 3px solid black;
+  border-radius: 10px;
+
+  /* 3D effect */
+  box-shadow: 0 5px 0px #d8d3d3;
+
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.upload-file-button:hover {
+  background: #ffffff;
+}
+
+.upload-file-button:active {
+  /* pressed effect */
+  box-shadow: 0 2px 0px #e5e1e1;
+  transform: translateY(5px);
 }

@@ -96,20 +96,21 @@ public class SREG
 public abstract class CommandTemplate
 {
     public abstract bool ConfirmCommand(byte[] commandBytes);
-    public abstract void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex);
+    public abstract void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan);
 }
 
 public class JMP() : CommandTemplate
 {
     public override bool ConfirmCommand(byte[] commandBytes) => (commandBytes[0] >> 1) == 0b110;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         ushort lastByte = fileSpan.Slice2Char();
         ushort nextByte = fileSpan.Slice2Char();
 
         int address = (byte)(commandBytes[1] & 1) << 22 | (byte)(commandBytes[0] >> 4) << 17 | (byte)(commandBytes[0] & 1) << 16 | (byte)(nextByte) << 8 | (byte)lastByte;
-        commandIndex += 2;
+
+        throw new ArgumentException("Change this so that the jump command takes what it needs from the command bytes");
 
         program.PC = address;
 
@@ -121,7 +122,7 @@ public class EOR() : CommandTemplate
 {
     public override bool ConfirmCommand(byte[] commandBytes) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         byte highR = (byte)((commandBytes[1] >> 1) & 1);
         byte highD = (byte)(commandBytes[1] & 1);
@@ -144,7 +145,7 @@ public class OUT() : CommandTemplate
 {
     public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[1] >> 3) & 0b1) == 1;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         byte twoHighAABytes = (byte)((commandBytes[1] >> 1) & 0b11);
         byte highRByte = (byte)(commandBytes[1] & 1);
@@ -163,7 +164,7 @@ public class LDI() : CommandTemplate
 {
     public override bool ConfirmCommand(byte[] commandBytes) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         
         byte highKBytes = (byte)(commandBytes[1] & 0b1111);
@@ -185,7 +186,7 @@ public class IN() : CommandTemplate
 {
     public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[1] >> 3) & 0b1) == 0;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         byte twoHighAABytes = (byte)((commandBytes[1] >> 1) & 0b11);
         byte highDByte = (byte)(commandBytes[1] & 1);
@@ -204,7 +205,7 @@ public class RJMP() : CommandTemplate
 {
     public override bool ConfirmCommand(byte[] commandBytes) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         byte highKBytes = (byte)(commandBytes[1] & 0b1111);
         byte remainingKBytes = (byte)(commandBytes[0]);
@@ -222,7 +223,7 @@ public class SUBI() : CommandTemplate
 {
     public override bool ConfirmCommand(byte[] commandBytes) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         byte highKBytes = (byte)(commandBytes[1] & 0b1111);
         byte lowKBytes = (byte)(commandBytes[0] & 0b1111);
@@ -245,7 +246,7 @@ public class CPI() : CommandTemplate
     // dddd selects R16..R31 (add 16)
     public override bool ConfirmCommand(byte[] commandBytes) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         byte highK = (byte)(commandBytes[1] & 0x0F);         // K high nibble
         byte lowK  = (byte)(commandBytes[0] & 0x0F);         // K low nibble
@@ -309,7 +310,7 @@ public class CPC() : CommandTemplate
     // Opcode format similar to other two-register instructions; parsing follows existing register decoding used elsewhere in this file.
     public override bool ConfirmCommand(byte[] commandBytes) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         // Decode Rd and Rr (5-bit register indices)
         byte highRBit = (byte)((commandBytes[1] >> 1) & 0x1);
@@ -403,7 +404,7 @@ public class STX() : CommandTemplate
         return false;
     }
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         // Get X pointer (R27:R26)
         int x = (program.DataSpace[27] << 8) | program.DataSpace[26];
@@ -446,7 +447,7 @@ public class BRBC() : CommandTemplate
     // Encoding (summary): contains a 7-bit relative displacement and a 3-bit SREG bit index
     public override bool ConfirmCommand(byte[] commandBytes) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         // SREG bit index is stored in the low 3 bits of the high byte
         byte sregIndex = (byte)(commandBytes[1] & 0b111);
@@ -493,12 +494,11 @@ public class CALL() : CommandTemplate
     // Opcode encoding is similar to JMP; we'll decode a 22-bit address from the instruction stream.
     public override bool ConfirmCommand(byte[] commandBytes) => (((commandBytes[0] >> 1) & 0b111) == 0b111) && (((commandBytes[1] >> 1) & 0b0) == 0b0); // heuristic: CALL/JMP family
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         // Read the next two words from the source (each Slice2Char reads a 16-bit word as ushort)
         ushort lowWord = fileSpan.Slice2Char();
         ushort highWord = fileSpan.Slice2Char();
-        commandIndex += 2;
 
         // Build 22-bit address: bits come from commandBytes and the two following words similar to JMP
         int address = (byte)(commandBytes[1] & 1) << 22 | (byte)(commandBytes[0] >> 4) << 17 | (byte)(commandBytes[0] & 1) << 16 | (highWord << 8) | (lowWord);
@@ -518,7 +518,7 @@ public class RET() : CommandTemplate
     // RET: Return from subroutine
     public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[0] & 0xFF) == 0x95 && ((commandBytes[1] >> 4) & 0xF) == 0x08) || true; // conservative true fallback
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         // Pop 4-byte return address
         int returnAddress = program.PopInt32();
@@ -533,7 +533,7 @@ public class PUSH() : CommandTemplate
     // Encoding: many single-register instructions place the register in the same bits; we'll decode accordingly.
     public override bool ConfirmCommand(byte[] commandBytes) => (commandBytes[0] & 0b1111) == 0b1111;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan, ref int commandIndex)
+    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
     {
         // Decode register (common pattern used elsewhere)
         byte highRByte = (byte)(commandBytes[1] & 0b1);
