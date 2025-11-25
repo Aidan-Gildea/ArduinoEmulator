@@ -4,6 +4,18 @@ import React, { useEffect, useState, useRef } from 'react';
 
 const pollIntervalMs = 5000; // e.g., 5 seconds
 
+async function IsAPIRunning() {
+    try
+    {
+        await fetch("http://localhost:5024/Visualizer/GetHealth");
+        return true;
+    }
+    catch
+    {
+        return false;
+    }
+}
+
 const Registers: React.FC = () => {
     const [registers, setRegisters] = useState<number[]>([]);
     const [loading, setLoading] = useState(true);
@@ -14,6 +26,8 @@ const Registers: React.FC = () => {
 
         const fetchAndUpdate = async (isInitial = false) => {
             try {
+                if(!(await IsAPIRunning())) return;
+
                 if (isInitial) setLoading(true);
 
                 const data = await GetRegisters();
@@ -83,6 +97,8 @@ const HexInstruction: React.FC = () => {
 
         const fetchAndUpdate = async (isInitial = false) => {
             try {
+                if(!(await IsAPIRunning())) return;
+                
                 if (isInitial) setLoading(true);
 
                 if (isCancelled) return;
@@ -129,6 +145,30 @@ const HexInstruction: React.FC = () => {
 
 export { HexInstruction };
 
+function parseIntelHex(lines: string[]): number[] {
+  const bytes: number[] = [];
+
+  for (let line of lines) {
+    line = line.trim();
+    if (!line.startsWith(":")) continue;
+
+    const byteCount = parseInt(line.slice(1, 3), 16);
+    const recordType = parseInt(line.slice(7, 9), 16);
+
+    if (recordType !== 0) continue; // skip non-data lines
+
+    const dataField = line.slice(9, 9 + byteCount * 2);
+
+    for (let i = 0; i < dataField.length; i += 2) {
+      const byte = parseInt(dataField.substr(i, 2), 16);
+      bytes.push(byte);
+    }
+  }
+
+  return bytes;
+}
+
+
 interface UploadFileButtonProps {
     onFileLoad: (content: string[], name: string) => void;
 }
@@ -152,6 +192,8 @@ const UploadFileButton: React.FC<UploadFileButtonProps> = ({ onFileLoad }) => {
             };
             reader.readAsText(file);
         }
+
+
     };
 
     return (

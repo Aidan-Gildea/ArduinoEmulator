@@ -45,7 +45,13 @@ public record ByteArrayResponse(
 [Route("[controller]")]
 public class Visualizer : ControllerBase
 {
-    FIleParse fileParse = new FIleParse();
+    FileParse fileParse = new FileParse();
+
+    [HttpGet("GetHealth")]
+    public IActionResult GetHealth()
+    {
+        return Ok();
+    }
 
     [HttpPost("ParseInstruction")]
     public MachineData ParseInstruction(CommandTemplate command, string instructionHex, int linePosition, MachineData previousState)

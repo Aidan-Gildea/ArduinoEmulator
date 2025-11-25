@@ -1,0 +1,5 @@
+interface IMachineData
+{
+    pc: number;
+    
+}
