@@ -100,4 +100,9 @@ public class FileParse
         
         return newState;
     }
+
+    public static void Main()
+    {
+        
+    }
 }
