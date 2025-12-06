@@ -57,6 +57,8 @@ public class CatData
 [Route("[controller]")]
 public class Visualizer : ControllerBase
 {
+    CatData catData;
+
     // [HttpGet("GetHealth")]
     // public IActionResult GetHealth()
     // {
@@ -70,7 +72,7 @@ public class Visualizer : ControllerBase
     // }
 
     [HttpPost("UpdateCatData")]
-    public IActionResult UpdateCatData([FromBody] CatData catData)
+    public ActionResult<CatData> UpdateCatData([FromBody] CatData catData)
     {
         return Ok(catData);
     }
