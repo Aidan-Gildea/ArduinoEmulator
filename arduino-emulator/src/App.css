@@ -10,6 +10,7 @@
   --panel-border: 3px solid white;
   --board-visual-height: 460px;
   --panel-margin: 10px;
+  --right-panel-left: 850px;
 }
 
 .right-side-panel {
@@ -18,8 +19,7 @@
   right: 0px;
   top: 0px;
   bottom: 0px;
-  border: 3px solid rgb(255, 255, 255);
-  z-index: 1001;
+  border: 3px solid rgb(255, 255, 255); 
   display: flex;
   flex-direction: column;
 }
@@ -49,11 +49,53 @@
   flex-grow: 1;
   border: 3px solid white;
   margin: var(--panel-margin);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  padding: 10px;
+  border-bottom: 2px solid white;
+}
+
+.info-item {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  color: white;
+  font-family: monospace;
+  font-size: 16px;
+  padding: 0 10px;
+}
+
+.info-item:first-child {
+  border-right: 2px solid white;
+}
+
+.info-label {
+  font-weight: bold;
+}
+
+.info-value {
+  background: linear-gradient(145deg, #ffffff, #e6e6e6);
+  color: black;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid #cccccc;
+  box-shadow: 
+    1px 1px 3px rgba(0, 0, 0, 0.3),
+    inset -1px -1px 1px rgba(0, 0, 0, 0.1),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.8);
 }
 
 .register-grid-panel {
-  position: relative;
-  border: 3px solid white;
+  position: relative; 
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(4, 1fr);
@@ -82,4 +124,29 @@
     3px 3px 8px rgba(0, 0, 0, 0.4),
     inset -1px -1px 2px rgba(0, 0, 0, 0.1),
     inset 1px 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+.left-side-panel {
+  position: fixed;
+  border: 3px solid #ffffff;
+  right: calc(100% - var(--right-panel-left) + 5px);
+  left: 0px;
+  top: 0px;
+  bottom: 0px;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-actions-panel {
+  position: relative;
+  margin: var(--panel-margin) var(--panel-margin) 0px var(--panel-margin);
+  height: 80px;
+  border: 3px solid white;
+}
+
+.code-panel {
+  flex-grow: 1;
+  margin: var(--panel-margin);
+  height: 800px;
+  border: 3px dashed white;
 }
