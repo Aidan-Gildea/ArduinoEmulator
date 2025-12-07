@@ -9,7 +9,9 @@ function App() {
     <>
       <div className="left-side-panel">
         <div className="code-actions-panel">
-          
+          <button className="upload-hex-file-button">
+            Upload Hex
+          </button>
         </div>
         <div className="code-panel">
 
