@@ -1,15 +1,42 @@
-import { useState } from 'react'
+import { useRef } from 'react'
 import './App.css'
 
 function App() {
   // Create array of 32 registers (R0 - R31)
   const registers = Array.from({ length: 32 }, (_, i) => i);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      console.log('Selected file:', file.name);
+      // Add your file handling logic here
+      // For example, read the file:
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result;
+        console.log('File content:', content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleButtonClick = () => {
+    fileInputRef.current?.click();
+  };
 
   return (
     <>
       <div className="left-side-panel">
         <div className="code-actions-panel">
-          <button className="upload-hex-file-button">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept=".hex"
+            style={{ display: 'none' }}
+          />
+          <button className="upload-hex-file-button" onClick={handleButtonClick}>
             Upload Hex
           </button>
         </div>
