@@ -1,9 +1,9 @@
 import { useRef } from 'react'
 import './App.css'
 
-
-
 function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigits, 16); }
+
+let dataLines: string[] = [];
 
 function App() {
   const registers = Array.from({ length: 32 }, (_, i) => i);
@@ -17,18 +17,13 @@ function App() {
       reader.onload = (e) => {
         const content = e.target?.result as string;
         let lines: string[]  = content.split('\n');
-        let dataLines: string[] = [];
 
         for(let i = 0; i < lines.length; i++) {
 
           let dataCountHex: string = lines[i].slice(1, 3);
           let dataCount: number = ConvertHexToNumber(dataCountHex);
-          let dataLine: string = lines[i].slice(9, 9 + 2 * dataCount);
-          console.log('Data Count', dataCount);
-          console.log('Data Line:', dataLine)
-          
+          dataLines[i] = lines[i].slice(9, 9 + 2 * dataCount);
         }
-        console.log('File lines:', lines);
       };
       reader.readAsText(file);
     }
@@ -37,6 +32,11 @@ function App() {
 
   const handleButtonClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleStepClick = () => {
+    console.log('Step clicked');
+    // Add your step logic here
   };
 
   return (
@@ -53,7 +53,7 @@ function App() {
           <button className="code-actions-button" style={{width: '200px'}} onClick={handleButtonClick}>
             Upload Hex
           </button>
-          <button className="code-actions-button">
+          <button className="code-actions-button" onClick={handleStepClick}>
             Step
           </button>
           <button className="code-actions-button">
