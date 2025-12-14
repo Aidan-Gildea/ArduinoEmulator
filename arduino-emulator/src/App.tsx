@@ -1,24 +1,38 @@
 import { useRef } from 'react'
 import './App.css'
 
+
+
+function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigits, 16); }
+
 function App() {
-  // Create array of 32 registers (R0 - R31)
   const registers = Array.from({ length: 32 }, (_, i) => i);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      console.log('Selected file:', file.name);
-      // Add your file handling logic here
-      // For example, read the file:
+
       const reader = new FileReader();
       reader.onload = (e) => {
-        const content = e.target?.result;
-        console.log('File content:', content);
+        const content = e.target?.result as string;
+        let lines: string[]  = content.split('\n');
+        let dataLines: string[] = [];
+
+        for(let i = 0; i < lines.length; i++) {
+
+          let dataCountHex: string = lines[i].slice(1, 3);
+          let dataCount: number = ConvertHexToNumber(dataCountHex);
+          let dataLine: string = lines[i].slice(9, 9 + 2 * dataCount);
+          console.log('Data Count', dataCount);
+          console.log('Data Line:', dataLine)
+          
+        }
+        console.log('File lines:', lines);
       };
       reader.readAsText(file);
     }
+    event.target.value = "";
   };
 
   const handleButtonClick = () => {
@@ -36,8 +50,14 @@ function App() {
             accept=".hex"
             style={{ display: 'none' }}
           />
-          <button className="upload-hex-file-button" onClick={handleButtonClick}>
+          <button className="code-actions-button" style={{width: '200px'}} onClick={handleButtonClick}>
             Upload Hex
+          </button>
+          <button className="code-actions-button">
+            Step
+          </button>
+          <button className="code-actions-button">
+            Run
           </button>
         </div>
         <div className="code-panel">
