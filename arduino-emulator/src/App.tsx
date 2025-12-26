@@ -4,6 +4,12 @@ import './App.css'
 function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigits, 16); }
 
 let dataLines: string[] = [];
+let instructionPosition = 0;
+
+interface MachineData
+{
+  
+}
 
 function App() {
   const registers = Array.from({ length: 32 }, (_, i) => i);
@@ -35,8 +41,9 @@ function App() {
   };
 
   const handleStepClick = () => {
-    console.log('Step clicked');
-    // Add your step logic here
+    
+    
+    instructionPosition++;
   };
 
   return (

@@ -19,7 +19,7 @@ public class MachineData
 {
     public int PC;
     public byte[] DataSpace = new byte[2000];
-    // Simple stack pointer for CALL/RET (points to next free byte)
+
     public int SP;
 
     public SREG StatusRegister = new SREG();
@@ -95,162 +95,208 @@ public class SREG
 
 public abstract class CommandTemplate
 {
-    public abstract bool ConfirmCommand(byte[] commandBytes);
-    public abstract void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan);
+    public List<byte> CommandBytes { get; protected set; }
+    public abstract int AdditionalBytesNeeded { get; }
+    public abstract string Identifier { get; }
+
+    protected CommandTemplate(List<byte> commandBytes)
+    {
+        CommandBytes = commandBytes;
+    }
+
+    public abstract bool ConfirmCommand(byte dataByte, byte opCodeByte);
+    public abstract void RunCommand(MachineData program);
 }
 
-public class JMP() : CommandTemplate
+public class JMP(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
-    public override bool ConfirmCommand(byte[] commandBytes) => (commandBytes[0] >> 1) == 0b110;
+    public override string Identifier => "JMP";
+    public override int AdditionalBytesNeeded => 2;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => (dataByte >> 1) == 0b110;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
-        ushort lastByte = fileSpan.Slice2Char();
-        ushort nextByte = fileSpan.Slice2Char();
+        // CommandBytes layout (big-endian): [opCodeByte, dataByte, highByte, lowByte]
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
+        byte highByte = CommandBytes.Count > 2 ? CommandBytes[2] : (byte)0;
+        byte lowByte = CommandBytes.Count > 3 ? CommandBytes[3] : (byte)0;
 
-        int address = (byte)(commandBytes[1] & 1) << 22 | (byte)(commandBytes[0] >> 4) << 17 | (byte)(commandBytes[0] & 1) << 16 | (byte)(nextByte) << 8 | (byte)lastByte;
-
-        throw new ArgumentException("Change this so that the jump command takes what it needs from the command bytes");
+        int address = (byte)(opCodeByte & 1) << 22
+                    | (byte)(dataByte >> 4) << 17
+                    | (byte)(dataByte & 1) << 16
+                    | (highByte << 8)
+                    | lowByte;
 
         program.PC = address;
 
-        Console.WriteLine($"JMP to {address}");
+        Console.WriteLine($"JMP 0x{address:X6}");
     }
 }
 
-public class EOR() : CommandTemplate
+public class EOR(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
-    public override bool ConfirmCommand(byte[] commandBytes) => true;
+    public override string Identifier => "EOR";
+    public override int AdditionalBytesNeeded => 0;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
-        byte highR = (byte)((commandBytes[1] >> 1) & 1);
-        byte highD = (byte)(commandBytes[1] & 1);
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
 
-        byte remainingD = (byte)(commandBytes[0] >> 4);
-        byte remainingR = (byte)(commandBytes[0] & 0b1111);
+        byte highR = (byte)((opCodeByte >> 1) & 1);
+        byte highD = (byte)(opCodeByte & 1);
 
-        byte rRegAddress = (byte)((highR << 5) | remainingR);
-        byte dRegAddress = (byte)((highD << 5) | remainingD);
+        byte remainingD = (byte)(dataByte >> 4);
+        byte remainingR = (byte)(dataByte & 0b1111);
+
+        byte rRegAddress = (byte)((highR << 4) | remainingR);
+        byte dRegAddress = (byte)((highD << 4) | remainingD);
 
         program.DataSpace[dRegAddress] = (byte)(program.DataSpace[dRegAddress] ^ program.DataSpace[rRegAddress]);
 
         program.PC++;
 
-        Console.WriteLine($"R{dRegAddress} is now {program.DataSpace[dRegAddress]} ");
+        Console.WriteLine($"EOR R{dRegAddress}, R{rRegAddress}");
     }
 }
 
-public class OUT() : CommandTemplate
+public class OUT(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
-    public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[1] >> 3) & 0b1) == 1;
+    public override string Identifier => "OUT";
+    public override int AdditionalBytesNeeded => 0;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => ((opCodeByte >> 3) & 0b1) == 1;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
-        byte twoHighAABytes = (byte)((commandBytes[1] >> 1) & 0b11);
-        byte highRByte = (byte)(commandBytes[1] & 1);
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
 
-        byte IOAddress = (byte)((twoHighAABytes << 4) | commandBytes[0] & 0b1111);
-        byte registerAddress = (byte)((highRByte << 4) | (commandBytes[0] >> 4));
+        byte twoHighAABytes = (byte)((opCodeByte >> 1) & 0b11);
+        byte highRByte = (byte)(opCodeByte & 1);
 
-        program.DataSpace[IOAddress + 31] = program.DataSpace[registerAddress]; // Adding 31 bc that is the last index for GP registers
+        byte IOAddress = (byte)((twoHighAABytes << 4) | (dataByte & 0b1111));
+        byte registerAddress = (byte)((highRByte << 4) | (dataByte >> 4));
+
+        program.DataSpace[IOAddress + 31] = program.DataSpace[registerAddress]; // I/O space offset 31
         program.PC++;
 
-        Console.WriteLine($"OUT IO Space at {IOAddress} is now {program.DataSpace[registerAddress]}");
+        Console.WriteLine($"OUT {IOAddress}, R{registerAddress}");
     }
 }
 
-public class LDI() : CommandTemplate
+public class LDI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
-    public override bool ConfirmCommand(byte[] commandBytes) => true;
+    public override string Identifier => "LDI";
+    public override int AdditionalBytesNeeded => 0;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
-        
-        byte highKBytes = (byte)(commandBytes[1] & 0b1111);
-        byte lowKBytes = (byte)(commandBytes[0] & 0b1111);
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
 
-        byte dBytes = (byte)((commandBytes[0] >> 4) & 0b1111); 
-        dBytes += 16; // AVR instruction set uses R16-R31 for this command
+        byte highKBytes = (byte)(opCodeByte & 0b1111);
+        byte lowKBytes = (byte)(dataByte & 0b1111);
+
+        byte dBytes = (byte)((dataByte >> 4) & 0b1111);
+        dBytes += 16; // R16-R31
 
         byte kNumber = (byte)((highKBytes << 4) | lowKBytes);
         program.DataSpace[dBytes] = kNumber;
 
-        Console.WriteLine($"LDI R{dBytes} = {kNumber}");
+        Console.WriteLine($"LDI R{dBytes}, 0x{kNumber:X2}");
 
         program.PC++;
     }
 }
 
-public class IN() : CommandTemplate
+public class IN(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
-    public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[1] >> 3) & 0b1) == 0;
+    public override string Identifier => "IN";
+    public override int AdditionalBytesNeeded => 0;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => ((opCodeByte >> 3) & 0b1) == 0;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
-        byte twoHighAABytes = (byte)((commandBytes[1] >> 1) & 0b11);
-        byte highDByte = (byte)(commandBytes[1] & 1);
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
 
-        byte IOAddress = (byte)((twoHighAABytes << 4) | commandBytes[0] & 0b1111);
-        byte registerAddress = (byte)((highDByte << 4) | (commandBytes[0] >> 4));
+        byte twoHighAABytes = (byte)((opCodeByte >> 1) & 0b11);
+        byte highDByte = (byte)(opCodeByte & 1);
+
+        byte IOAddress = (byte)((twoHighAABytes << 4) | (dataByte & 0b1111));
+        byte registerAddress = (byte)((highDByte << 4) | (dataByte >> 4));
 
         program.DataSpace[registerAddress] = program.DataSpace[IOAddress];
 
-        Console.WriteLine($"IN R{registerAddress} at IO Space {IOAddress}");
+        Console.WriteLine($"IN R{registerAddress}, {IOAddress}");
         program.PC++;
     }
 }
 
-public class RJMP() : CommandTemplate
+public class RJMP(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
-    public override bool ConfirmCommand(byte[] commandBytes) => true;
+    public override string Identifier => "RJMP";
+    public override int AdditionalBytesNeeded => 0;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
-        byte highKBytes = (byte)(commandBytes[1] & 0b1111);
-        byte remainingKBytes = (byte)(commandBytes[0]);
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
 
-        int kNumber = highKBytes << 8 | remainingKBytes;
+        int kNumber = ((opCodeByte & 0x0F) << 8) | dataByte;
         ThreeNibble threeNibble = kNumber;
 
         program.PC += 1 + threeNibble;
 
-        Console.WriteLine($"RJMP to {threeNibble}");
+        Console.WriteLine($"RJMP {threeNibble}");
     }
 }
 
-public class SUBI() : CommandTemplate
+public class SUBI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
-    public override bool ConfirmCommand(byte[] commandBytes) => true;
+    public override string Identifier => "SUBI";
+    public override int AdditionalBytesNeeded => 0;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => true;
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
-        byte highKBytes = (byte)(commandBytes[1] & 0b1111);
-        byte lowKBytes = (byte)(commandBytes[0] & 0b1111);
-        byte dBytes = (byte)((commandBytes[0] >> 4) & 0b1111);
-        dBytes += 16; // AVR instruction set uses R16-R31 for this command
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
+
+        byte highKBytes = (byte)(opCodeByte & 0b1111);
+        byte lowKBytes = (byte)(dataByte & 0b1111);
+        byte dBytes = (byte)((dataByte >> 4) & 0b1111);
+        dBytes += 16; // R16-R31
         byte kNumber = (byte)((highKBytes << 4) | lowKBytes);
 
         byte result = (byte)(program.DataSpace[dBytes] - kNumber);
         program.DataSpace[dBytes] = result;
         program.PC++;
-        Console.WriteLine($"SUBI R{dBytes} = {result} (was {program.DataSpace[dBytes] + kNumber}, sub {kNumber})");
+        Console.WriteLine($"SUBI R{dBytes}, 0x{kNumber:X2}");
     }
 }
 
-public class CPI() : CommandTemplate
+public class CPI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
+    public override string Identifier => "CPI";
+    public override int AdditionalBytesNeeded => 0;
     // CPI (Compare with Immediate)
     // Opcode format: 0011 KKKK dddd KKKK
-    // High 4 bits (0011) reside in the upper nibble of commandBytes[1]
+    // High 4 bits (0011) reside in the upper nibble of opCodeByte
     // dddd selects R16..R31 (add 16)
-    public override bool ConfirmCommand(byte[] commandBytes) => true;
-
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => true;
+    public override void RunCommand(MachineData program)
     {
-        byte highK = (byte)(commandBytes[1] & 0x0F);         // K high nibble
-        byte lowK  = (byte)(commandBytes[0] & 0x0F);         // K low nibble
-        byte dLow  = (byte)((commandBytes[0] >> 4) & 0x0F);  // destination register low bits
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
+
+        byte highK = (byte)(opCodeByte & 0x0F);         // K high nibble
+        byte lowK  = (byte)(dataByte & 0x0F);           // K low nibble
+        byte dLow  = (byte)((dataByte >> 4) & 0x0F);    // destination register low bits
         byte rdIndex = (byte)(dLow + 16);                    // R16..R31
         byte K = (byte)((highK << 4) | lowK);
 
@@ -298,25 +344,28 @@ public class CPI() : CommandTemplate
         program.DataSpace[SREG_ADDR + 31] = sreg;
         
 
-        Console.WriteLine($"CPI R{rdIndex}, 0x{K:X2} (R{rdIndex}=0x{rdValue:X2}, result=0x{result:X2})");
+        Console.WriteLine($"CPI R{rdIndex}, 0x{K:X2}");
 
         program.PC++;
     }
 }
 
-public class CPC() : CommandTemplate
+public class CPC(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
+    public override string Identifier => "CPC";
+    public override int AdditionalBytesNeeded => 0;
     // CPC: Compare with Carry (Rd - Rr - C)
     // Opcode format similar to other two-register instructions; parsing follows existing register decoding used elsewhere in this file.
-    public override bool ConfirmCommand(byte[] commandBytes) => true;
-
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => true;
+    public override void RunCommand(MachineData program)
     {
         // Decode Rd and Rr (5-bit register indices)
-        byte highRBit = (byte)((commandBytes[1] >> 1) & 0x1);
-        byte highDBit = (byte)(commandBytes[1] & 0x1);
-        byte dLow = (byte)((commandBytes[0] >> 4) & 0x0F);
-        byte rLow = (byte)(commandBytes[0] & 0x0F);
+        byte opCodeByte = CommandBytes[1];
+        byte dataByte = CommandBytes[0];
+        byte highRBit = (byte)((opCodeByte >> 1) & 0x1);
+        byte highDBit = (byte)(opCodeByte & 0x1);
+        byte dLow = (byte)((dataByte >> 4) & 0x0F);
+        byte rLow = (byte)(dataByte & 0x0F);
 
         byte rdIndex = (byte)((highDBit << 4) | dLow);
         byte rrIndex = (byte)((highRBit << 4) | rLow);
@@ -365,24 +414,26 @@ public class CPC() : CommandTemplate
 
         program.DataSpace[SREG_ADDR] = sreg;
 
-        Console.WriteLine($"CPC R{rdIndex} - R{rrIndex} - {(carryIn ? 1 : 0)} => result=0x{result:X2} (R{rdIndex}=0x{rdValue:X2}, R{rrIndex}=0x{rrValue:X2})");
+        Console.WriteLine($"CPC R{rdIndex}, R{rrIndex}");
 
         program.PC++;
     }
 }
 
-public class STX() : CommandTemplate
+public class STX(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
+    public override string Identifier => "STX";
+    public override int AdditionalBytesNeeded => 0;
     private enum Variant { None, X, XPostInc, XPreDec }
     private Variant detectedVariant = Variant.None;
 
     // ST X, Rr:    1001 001d dddd 1100
     // ST X+, Rr:   1001 001d dddd 1101
     // ST -X, Rr:   1001 001d dddd 1110
-    public override bool ConfirmCommand(byte[] commandBytes)
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte)
     {
-        int lastNibble = commandBytes[0] & 0xF;
-        if (((commandBytes[1] >> 1) & 0b1) == 1)
+        int lastNibble = dataByte & 0xF;
+        if (((opCodeByte >> 1) & 0b1) == 1)
         {
             if (lastNibble == 0xC)
             {
@@ -404,57 +455,59 @@ public class STX() : CommandTemplate
         return false;
     }
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
         // Get X pointer (R27:R26)
         int x = (program.DataSpace[27] << 8) | program.DataSpace[26];
 
         // Get source register
-        byte highRByte = (byte)(commandBytes[1] & 0b1);
-        byte lowRBytes = (byte)(commandBytes[0] >> 4);
+        byte highRByte = (byte)(CommandBytes[0] & 0b1);
+        byte lowRBytes = (byte)(CommandBytes[1] >> 4);
         byte registerAddress = (byte)((highRByte << 4) | lowRBytes);
 
         switch (detectedVariant)
         {
             case Variant.X:
                 program.DataSpace[x] = program.DataSpace[registerAddress];
+                Console.WriteLine($"ST X, R{registerAddress}");
                 break;
             case Variant.XPostInc:
                 program.DataSpace[x] = program.DataSpace[registerAddress];
                 x++;
                 program.DataSpace[27] = (byte)(x >> 8);
                 program.DataSpace[26] = (byte)(x & 0xFF);
+                Console.WriteLine($"ST X+, R{registerAddress}");
                 break;
             case Variant.XPreDec:
                 x--;
                 program.DataSpace[27] = (byte)(x >> 8);
                 program.DataSpace[26] = (byte)(x & 0xFF);
                 program.DataSpace[x] = program.DataSpace[registerAddress];
+                Console.WriteLine($"ST -X, R{registerAddress}");
                 break;
             default:
                 throw new InvalidOperationException("Unknown STX variant");
         }
 
-        Console.WriteLine($"STX put register {registerAddress} into dataspace {x}");
-
         program.PC++;
     }
 }
 
-public class BRBC() : CommandTemplate
+public class BRBC(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
+    public override string Identifier => "BRBC";
+    public override int AdditionalBytesNeeded => 0;
     // BRBC: Branch if bit in SREG is cleared
     // Encoding (summary): contains a 7-bit relative displacement and a 3-bit SREG bit index
-    public override bool ConfirmCommand(byte[] commandBytes) => true;
-
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => true;
+    public override void RunCommand(MachineData program)
     {
         // SREG bit index is stored in the low 3 bits of the high byte
-        byte sregIndex = (byte)(commandBytes[1] & 0b111);
+        byte sregIndex = (byte)(CommandBytes[0] & 0b111);
 
         // Build 7-bit signed displacement from bits across the two bytes
-        byte highK = (byte)(commandBytes[0] & 0b11);          // top 2 bits of K
-        byte lowK = (byte)(commandBytes[1] >> 3);             // low 5 bits of K
+        byte highK = (byte)(CommandBytes[1] & 0b11);          // top 2 bits of K (from data byte)
+        byte lowK = (byte)(CommandBytes[0] >> 3);             // low 5 bits of K (from op-code byte)
         int k = (highK << 5) | lowK;                         // 7-bit unsigned
 
         // Sign-extend 7-bit value to signed int (-64..+63)
@@ -477,31 +530,37 @@ public class BRBC() : CommandTemplate
         {
             // Branch taken: relative PC displacement is signedK + 1 (per AVR encoding semantics used elsewhere in this project)
             program.PC += signedK + 1;
-            Console.WriteLine($"BRBC bit {sregIndex} cleared -> branch {signedK + 1}");
+            Console.WriteLine($"BRBC {sregIndex}, {signedK + 1}");
         }
         else
         {
             // Not taken: just advance to next instruction
             program.PC++;
-            Console.WriteLine($"BRBC bit {sregIndex} set -> no branch");
+            Console.WriteLine($"BRBC {sregIndex}, not taken");
         }
     }
 }
 
-public class CALL() : CommandTemplate
+public class CALL(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
+    public override string Identifier => "CALL";
+    public override int AdditionalBytesNeeded => 2;
     // CALL: Long Call (22-bit absolute address)
     // Opcode encoding is similar to JMP; we'll decode a 22-bit address from the instruction stream.
-    public override bool ConfirmCommand(byte[] commandBytes) => (((commandBytes[0] >> 1) & 0b111) == 0b111) && (((commandBytes[1] >> 1) & 0b0) == 0b0); // heuristic: CALL/JMP family
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => (((dataByte >> 1) & 0b111) == 0b111) && (((opCodeByte >> 1) & 0b0) == 0b0); // heuristic: CALL/JMP family
 
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override void RunCommand(MachineData program)
     {
-        // Read the next two words from the source (each Slice2Char reads a 16-bit word as ushort)
-        ushort lowWord = fileSpan.Slice2Char();
-        ushort highWord = fileSpan.Slice2Char();
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
+        byte highByte = CommandBytes.Count > 2 ? CommandBytes[2] : (byte)0;
+        byte lowByte = CommandBytes.Count > 3 ? CommandBytes[3] : (byte)0;
 
-        // Build 22-bit address: bits come from commandBytes and the two following words similar to JMP
-        int address = (byte)(commandBytes[1] & 1) << 22 | (byte)(commandBytes[0] >> 4) << 17 | (byte)(commandBytes[0] & 1) << 16 | (highWord << 8) | (lowWord);
+        int address = (byte)(opCodeByte & 1) << 22
+                    | (byte)(dataByte >> 4) << 17
+                    | (byte)(dataByte & 1) << 16
+                    | (highByte << 8)
+                    | lowByte;
 
         // Push return address (address of next instruction) onto the stack
         int returnAddress = program.PC + 1; // next instruction after CALL
@@ -509,41 +568,43 @@ public class CALL() : CommandTemplate
 
         program.PC = address;
 
-        Console.WriteLine($"CALL to {address}, return addr {returnAddress}, SP={program.SP}");
+        Console.WriteLine($"CALL 0x{address:X6}");
     }
 }
 
-public class RET() : CommandTemplate
+public class RET(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
+    public override string Identifier => "RET";
+    public override int AdditionalBytesNeeded => 0;
     // RET: Return from subroutine
-    public override bool ConfirmCommand(byte[] commandBytes) => ((commandBytes[0] & 0xFF) == 0x95 && ((commandBytes[1] >> 4) & 0xF) == 0x08) || true; // conservative true fallback
-
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => ((dataByte & 0xFF) == 0x95 && ((opCodeByte >> 4) & 0xF) == 0x08) || true; // conservative true fallback
+    public override void RunCommand(MachineData program)
     {
         // Pop 4-byte return address
         int returnAddress = program.PopInt32();
         program.PC = returnAddress;
-        Console.WriteLine($"RET to {returnAddress}, SP={program.SP}");
+        Console.WriteLine("RET");
     }
 }
 
-public class PUSH() : CommandTemplate
+public class PUSH(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
+    public override string Identifier => "PUSH";
+    public override int AdditionalBytesNeeded => 0;
     // PUSH: push register Rr onto the stack
     // Encoding: many single-register instructions place the register in the same bits; we'll decode accordingly.
-    public override bool ConfirmCommand(byte[] commandBytes) => (commandBytes[0] & 0b1111) == 0b1111;
-
-    public override void RunCommand(MachineData program, byte[] commandBytes, ref ReadOnlySpan<char> fileSpan)
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => (dataByte & 0b1111) == 0b1111;
+    public override void RunCommand(MachineData program)
     {
         // Decode register (common pattern used elsewhere)
-        byte highRByte = (byte)(commandBytes[1] & 0b1);
-        byte lowRBytes = (byte)(commandBytes[0] >> 4);
+        byte highRByte = (byte)(CommandBytes[0] & 0b1);
+        byte lowRBytes = (byte)(CommandBytes[1] >> 4);
         byte registerAddress = (byte)((highRByte << 4) | lowRBytes);
 
         byte value = program.DataSpace[registerAddress];
         program.PushByte(value);
 
-        Console.WriteLine($"PUSH R{registerAddress} = 0x{value:X2}, SP={program.SP}");
+        Console.WriteLine($"PUSH R{registerAddress}");
 
         program.PC++;
     }
