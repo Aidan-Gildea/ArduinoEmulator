@@ -4,11 +4,16 @@ public class FindInstruction
 {
     public static Dictionary<int, List<Func<List<byte>, CommandTemplate>>> SixBitOpCodes = new Dictionary<int, List<Func<List<byte>, CommandTemplate>>>()
     {
-        [0b100101] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new JMP(bytes), (bytes) => new CALL(bytes) },
+        [0b100101] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new SEI(bytes), (bytes) => new CLI(bytes), (bytes) => new ADIW(bytes), (bytes) => new DEC(bytes), (bytes) => new RETI(bytes), (bytes) => new JMP(bytes), (bytes) => new CALL(bytes) },
         [0b001001] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new EOR(bytes) },
         [0b100100] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new STX(bytes), (bytes) => new STY(bytes), (bytes) => new STZ(bytes), (bytes) => new PUSH(bytes), (bytes) => new LDX(bytes), (bytes) => new LDY(bytes), (bytes) => new LDZ(bytes) },
+        [0b100110] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new SBI(bytes) },
         [0b000001] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new CPC(bytes) },
+        [0b000000] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new CPC(bytes) },
+        [0b000011] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new ADD(bytes) },
+        [0b000111] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new ADC(bytes) },
         [0b111101] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new BRBC(bytes) },
+        [0b111100] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new BRBS(bytes) },
     };
 
     public static Dictionary<int, List<Func<List<byte>, CommandTemplate>>> FiveBitOpCodes = new Dictionary<int, List<Func<List<byte>, CommandTemplate>>>()
