@@ -13,7 +13,7 @@ public class VisualizerController : ControllerBase
 {
     FileParse fileParse;
 
-    [HttpGet("FindAllInstructions")]
+    [HttpPost("FindAllInstructions")]
     public List<CommandTemplate> FindAllInstructions([FromBody] string[] dataLines)
     {
         FindInstruction find = new FindInstruction();

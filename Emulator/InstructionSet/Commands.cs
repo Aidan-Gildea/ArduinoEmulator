@@ -108,6 +108,14 @@ public abstract class CommandTemplate
     public abstract void RunCommand(MachineData program);
 }
 
+public class UnknownCommand(List<byte> commandBytes) : CommandTemplate(commandBytes)
+{
+    public override string Identifier => "NO COMMAND FOUND";
+    public override int AdditionalBytesNeeded => 0;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => false;
+    public override void RunCommand(MachineData program) { }
+}
+
 public class JMP(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "JMP";
@@ -489,6 +497,354 @@ public class STX(List<byte> commandBytes) : CommandTemplate(commandBytes)
                 throw new InvalidOperationException("Unknown STX variant");
         }
 
+        program.PC++;
+    }
+}
+
+public class STY(List<byte> commandBytes) : CommandTemplate(commandBytes)
+{
+    public override string Identifier => "STY";
+    public override int AdditionalBytesNeeded => 0;
+    private enum Variant { None, Y, YPostInc, YPreDec }
+    private Variant detectedVariant = Variant.None;
+
+    // ST Y, Rr:    1000 001d dddd 1000
+    // ST Y+, Rr:   1001 001d dddd 1001
+    // ST -Y, Rr:   1001 001d dddd 1010
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte)
+    {
+        int lastNibble = dataByte & 0xF;
+        // Check for opCode pattern 1001 001x or 1000 001x
+        if ((opCodeByte >> 1) == 0b1001001 || (opCodeByte >> 1) == 0b1000001)
+        {
+            if (lastNibble == 0x8)
+            {
+                detectedVariant = Variant.Y;
+                return true;
+            }
+            else if (lastNibble == 0x9)
+            {
+                detectedVariant = Variant.YPostInc;
+                return true;
+            }
+            else if (lastNibble == 0xA)
+            {
+                detectedVariant = Variant.YPreDec;
+                return true;
+            }
+        }
+        detectedVariant = Variant.None;
+        return false;
+    }
+
+    public override void RunCommand(MachineData program)
+    {
+        // Get Y pointer (R29:R28)
+        int y = (program.DataSpace[29] << 8) | program.DataSpace[28];
+
+        // Get source register
+        byte highRByte = (byte)(CommandBytes[0] & 0b1);
+        byte lowRBytes = (byte)(CommandBytes[1] >> 4);
+        byte registerAddress = (byte)((highRByte << 4) | lowRBytes);
+
+        switch (detectedVariant)
+        {
+            case Variant.Y:
+                program.DataSpace[y] = program.DataSpace[registerAddress];
+                Console.WriteLine($"ST Y, R{registerAddress}");
+                break;
+            case Variant.YPostInc:
+                program.DataSpace[y] = program.DataSpace[registerAddress];
+                y++;
+                program.DataSpace[29] = (byte)(y >> 8);
+                program.DataSpace[28] = (byte)(y & 0xFF);
+                Console.WriteLine($"ST Y+, R{registerAddress}");
+                break;
+            case Variant.YPreDec:
+                y--;
+                program.DataSpace[29] = (byte)(y >> 8);
+                program.DataSpace[28] = (byte)(y & 0xFF);
+                program.DataSpace[y] = program.DataSpace[registerAddress];
+                Console.WriteLine($"ST -Y, R{registerAddress}");
+                break;
+            default:
+                throw new InvalidOperationException("Unknown STY variant");
+        }
+
+        program.PC++;
+    }
+}
+
+public class STZ(List<byte> commandBytes) : CommandTemplate(commandBytes)
+{
+    public override string Identifier => "STZ";
+    public override int AdditionalBytesNeeded => 0;
+    private enum Variant { None, Z, ZPostInc, ZPreDec }
+    private Variant detectedVariant = Variant.None;
+
+    // ST Z, Rr:    1000 001d dddd 0000
+    // ST Z+, Rr:   1001 001d dddd 0001
+    // ST -Z, Rr:   1001 001d dddd 0010
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte)
+    {
+        int lastNibble = dataByte & 0xF;
+        // Check for opCode pattern 1001 001x or 1000 001x
+        if ((opCodeByte >> 1) == 0b1001001 || (opCodeByte >> 1) == 0b1000001)
+        {
+            if (lastNibble == 0x0)
+            {
+                detectedVariant = Variant.Z;
+                return true;
+            }
+            else if (lastNibble == 0x1)
+            {
+                detectedVariant = Variant.ZPostInc;
+                return true;
+            }
+            else if (lastNibble == 0x2)
+            {
+                detectedVariant = Variant.ZPreDec;
+                return true;
+            }
+        }
+        detectedVariant = Variant.None;
+        return false;
+    }
+
+    public override void RunCommand(MachineData program)
+    {
+        // Get Z pointer (R31:R30)
+        int z = (program.DataSpace[31] << 8) | program.DataSpace[30];
+
+        // Get source register
+        byte highRByte = (byte)(CommandBytes[0] & 0b1);
+        byte lowRBytes = (byte)(CommandBytes[1] >> 4);
+        byte registerAddress = (byte)((highRByte << 4) | lowRBytes);
+
+        switch (detectedVariant)
+        {
+            case Variant.Z:
+                program.DataSpace[z] = program.DataSpace[registerAddress];
+                Console.WriteLine($"ST Z, R{registerAddress}");
+                break;
+            case Variant.ZPostInc:
+                program.DataSpace[z] = program.DataSpace[registerAddress];
+                z++;
+                program.DataSpace[31] = (byte)(z >> 8);
+                program.DataSpace[30] = (byte)(z & 0xFF);
+                Console.WriteLine($"ST Z+, R{registerAddress}");
+                break;
+            case Variant.ZPreDec:
+                z--;
+                program.DataSpace[31] = (byte)(z >> 8);
+                program.DataSpace[30] = (byte)(z & 0xFF);
+                program.DataSpace[z] = program.DataSpace[registerAddress];
+                Console.WriteLine($"ST -Z, R{registerAddress}");
+                break;
+            default:
+                throw new InvalidOperationException("Unknown STZ variant");
+        }
+
+        program.PC++;
+    }
+}
+
+public class LDX(List<byte> commandBytes) : CommandTemplate(commandBytes)
+{
+    public override string Identifier => "LDX";
+    public override int AdditionalBytesNeeded => 0;
+    private enum Variant { None, X, XPostInc, XPreDec }
+    private Variant detectedVariant = Variant.None;
+
+    // LD Rd, X:    1001 000d dddd 1100
+    // LD Rd, X+:   1001 000d dddd 1101
+    // LD Rd, -X:   1001 000d dddd 1110
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte)
+    {
+        int lastNibble = dataByte & 0xF;
+        if (((opCodeByte >> 1) & 0b1) == 0) // opposite of STX
+        {
+            if (lastNibble == 0xC) { detectedVariant = Variant.X; return true; }
+            if (lastNibble == 0xD) { detectedVariant = Variant.XPostInc; return true; }
+            if (lastNibble == 0xE) { detectedVariant = Variant.XPreDec; return true; }
+        }
+        detectedVariant = Variant.None;
+        return false;
+    }
+
+    public override void RunCommand(MachineData program)
+    {
+        // X pointer (R27:R26)
+        int x = (program.DataSpace[27] << 8) | program.DataSpace[26];
+
+        // Destination register Rd
+        byte highDByte = (byte)(CommandBytes[0] & 0b1);
+        byte lowDBytes = (byte)(CommandBytes[1] >> 4);
+        byte rdIndex = (byte)((highDByte << 4) | lowDBytes);
+
+        switch (detectedVariant)
+        {
+            case Variant.X:
+                program.DataSpace[rdIndex] = program.DataSpace[x];
+                Console.WriteLine($"LD R{rdIndex}, X");
+                break;
+            case Variant.XPostInc:
+                program.DataSpace[rdIndex] = program.DataSpace[x];
+                x++;
+                program.DataSpace[27] = (byte)(x >> 8);
+                program.DataSpace[26] = (byte)(x & 0xFF);
+                Console.WriteLine($"LD R{rdIndex}, X+");
+                break;
+            case Variant.XPreDec:
+                x--;
+                program.DataSpace[27] = (byte)(x >> 8);
+                program.DataSpace[26] = (byte)(x & 0xFF);
+                program.DataSpace[rdIndex] = program.DataSpace[x];
+                Console.WriteLine($"LD R{rdIndex}, -X");
+                break;
+            default:
+                throw new InvalidOperationException("Unknown LDX variant");
+        }
+
+        program.PC++;
+    }
+}
+
+public class LDY(List<byte> commandBytes) : CommandTemplate(commandBytes)
+{
+    public override string Identifier => "LDY";
+    public override int AdditionalBytesNeeded => 0;
+    private enum Variant { None, Y, YPostInc, YPreDec }
+    private Variant detectedVariant = Variant.None;
+
+    // LD Rd, Y:    1000 000d dddd 1000
+    // LD Rd, Y+:   1001 000d dddd 1001
+    // LD Rd, -Y:   1001 000d dddd 1010
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte)
+    {
+        int lastNibble = dataByte & 0xF;
+        if ((opCodeByte >> 1) == 0b1001000 || (opCodeByte >> 1) == 0b1000000)
+        {
+            if (lastNibble == 0x8) { detectedVariant = Variant.Y; return true; }
+            if (lastNibble == 0x9) { detectedVariant = Variant.YPostInc; return true; }
+            if (lastNibble == 0xA) { detectedVariant = Variant.YPreDec; return true; }
+        }
+        detectedVariant = Variant.None;
+        return false;
+    }
+
+    public override void RunCommand(MachineData program)
+    {
+        int y = (program.DataSpace[29] << 8) | program.DataSpace[28];
+        byte highDByte = (byte)(CommandBytes[0] & 0b1);
+        byte lowDBytes = (byte)(CommandBytes[1] >> 4);
+        byte rdIndex = (byte)((highDByte << 4) | lowDBytes);
+
+        switch (detectedVariant)
+        {
+            case Variant.Y:
+                program.DataSpace[rdIndex] = program.DataSpace[y];
+                Console.WriteLine($"LD R{rdIndex}, Y");
+                break;
+            case Variant.YPostInc:
+                program.DataSpace[rdIndex] = program.DataSpace[y];
+                y++;
+                program.DataSpace[29] = (byte)(y >> 8);
+                program.DataSpace[28] = (byte)(y & 0xFF);
+                Console.WriteLine($"LD R{rdIndex}, Y+");
+                break;
+            case Variant.YPreDec:
+                y--;
+                program.DataSpace[29] = (byte)(y >> 8);
+                program.DataSpace[28] = (byte)(y & 0xFF);
+                program.DataSpace[rdIndex] = program.DataSpace[y];
+                Console.WriteLine($"LD R{rdIndex}, -Y");
+                break;
+            default:
+                throw new InvalidOperationException("Unknown LDY variant");
+        }
+
+        program.PC++;
+    }
+}
+
+public class LDZ(List<byte> commandBytes) : CommandTemplate(commandBytes)
+{
+    public override string Identifier => "LDZ";
+    public override int AdditionalBytesNeeded => 0;
+    private enum Variant { None, Z, ZPostInc, ZPreDec }
+    private Variant detectedVariant = Variant.None;
+
+    // LD Rd, Z:    1000 000d dddd 0000
+    // LD Rd, Z+:   1001 000d dddd 0001
+    // LD Rd, -Z:   1001 000d dddd 0010
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte)
+    {
+        int lastNibble = dataByte & 0xF;
+        if ((opCodeByte >> 1) == 0b1001000 || (opCodeByte >> 1) == 0b1000000)
+        {
+            if (lastNibble == 0x0) { detectedVariant = Variant.Z; return true; }
+            if (lastNibble == 0x1) { detectedVariant = Variant.ZPostInc; return true; }
+            if (lastNibble == 0x2) { detectedVariant = Variant.ZPreDec; return true; }
+        }
+        detectedVariant = Variant.None;
+        return false;
+    }
+
+    public override void RunCommand(MachineData program)
+    {
+        int z = (program.DataSpace[31] << 8) | program.DataSpace[30];
+        byte highDByte = (byte)(CommandBytes[0] & 0b1);
+        byte lowDBytes = (byte)(CommandBytes[1] >> 4);
+        byte rdIndex = (byte)((highDByte << 4) | lowDBytes);
+
+        switch (detectedVariant)
+        {
+            case Variant.Z:
+                program.DataSpace[rdIndex] = program.DataSpace[z];
+                Console.WriteLine($"LD R{rdIndex}, Z");
+                break;
+            case Variant.ZPostInc:
+                program.DataSpace[rdIndex] = program.DataSpace[z];
+                z++;
+                program.DataSpace[31] = (byte)(z >> 8);
+                program.DataSpace[30] = (byte)(z & 0xFF);
+                Console.WriteLine($"LD R{rdIndex}, Z+");
+                break;
+            case Variant.ZPreDec:
+                z--;
+                program.DataSpace[31] = (byte)(z >> 8);
+                program.DataSpace[30] = (byte)(z & 0xFF);
+                program.DataSpace[rdIndex] = program.DataSpace[z];
+                Console.WriteLine($"LD R{rdIndex}, -Z");
+                break;
+            default:
+                throw new InvalidOperationException("Unknown LDZ variant");
+        }
+
+        program.PC++;
+    }
+}
+
+public class ORI(List<byte> commandBytes) : CommandTemplate(commandBytes)
+{
+    public override string Identifier => "ORI";
+    public override int AdditionalBytesNeeded => 0;
+    public override bool ConfirmCommand(byte dataByte, byte opCodeByte) => true; // Four-bit family decoder selects us
+
+    public override void RunCommand(MachineData program)
+    {
+        byte opCodeByte = CommandBytes[0];
+        byte dataByte = CommandBytes[1];
+
+        byte highK = (byte)(opCodeByte & 0x0F);
+        byte lowK = (byte)(dataByte & 0x0F);
+        byte dLow = (byte)((dataByte >> 4) & 0x0F);
+        byte rdIndex = (byte)(dLow + 16); // R16..R31
+        byte K = (byte)((highK << 4) | lowK);
+
+        program.DataSpace[rdIndex] = (byte)(program.DataSpace[rdIndex] | K);
+        Console.WriteLine($"ORI R{rdIndex}, 0x{K:X2}");
         program.PC++;
     }
 }

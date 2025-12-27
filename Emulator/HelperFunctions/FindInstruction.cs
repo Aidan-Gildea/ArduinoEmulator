@@ -6,7 +6,7 @@ public class FindInstruction
     {
         [0b100101] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new JMP(bytes), (bytes) => new CALL(bytes) },
         [0b001001] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new EOR(bytes) },
-        [0b100100] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new STX(bytes) },
+        [0b100100] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new STX(bytes), (bytes) => new STY(bytes), (bytes) => new STZ(bytes), (bytes) => new PUSH(bytes), (bytes) => new LDX(bytes), (bytes) => new LDY(bytes), (bytes) => new LDZ(bytes) },
         [0b000001] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new CPC(bytes) },
         [0b111101] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new BRBC(bytes) },
     };
@@ -14,6 +14,7 @@ public class FindInstruction
     public static Dictionary<int, List<Func<List<byte>, CommandTemplate>>> FiveBitOpCodes = new Dictionary<int, List<Func<List<byte>, CommandTemplate>>>()
     {
         [0b10111] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new OUT(bytes) },
+        [0b10110] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new IN(bytes) },
     };
 
     public static Dictionary<int, List<Func<List<byte>, CommandTemplate>>> FourBitOpCodes = new Dictionary<int, List<Func<List<byte>, CommandTemplate>>>()
@@ -21,7 +22,8 @@ public class FindInstruction
         [0b1110] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new LDI(bytes) },
         [0b1100] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new RJMP(bytes) },
         [0b0101] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new SUBI(bytes) },
-        [0b0011] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new CPI(bytes) }
+        [0b0011] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new CPI(bytes) },
+        [0b0110] = new List<Func<List<byte>, CommandTemplate>>() { (bytes) => new ORI(bytes) }
     };
 
     public static CommandTemplate FindCommand(byte dataByte, byte opCodeByte)
@@ -52,9 +54,9 @@ public class FindInstruction
                 }
             }
         }
-        else
+        else if(FourBitOpCodes.TryGetValue(opCodeByte >> 4, out Commands)) // cant be an else because an error is thrown without valid instruction
         {
-            foreach (var item in FourBitOpCodes[opCodeByte >> 4])
+            foreach (var item in Commands)
             {
                 CommandTemplate command = item(commandBytes);
                 if (command.ConfirmCommand(dataByte, opCodeByte))
@@ -64,33 +66,57 @@ public class FindInstruction
             }
         }
 
-        throw new ArgumentException("Command does not exist");
+        return new UnknownCommand(commandBytes);
     }
 
     public List<CommandTemplate> FindAllCommands(string[] hexLines)
     {
         List<CommandTemplate> commands = new List<CommandTemplate>();
+        bool shouldTakeFromNextSpan = false;
     
-        foreach (string line in  hexLines)
+        for(int lineNum = 0; lineNum < hexLines.Length; lineNum++)
         {
-            ReadOnlySpan<char> lineSpan = line.AsSpan();
+            ReadOnlySpan<char> lineSpan = hexLines[lineNum].AsSpan();
 
-            byte dataByte = (byte)lineSpan.Slice2Char();
-            byte opCodeByte = (byte)lineSpan.Slice2Char();
-
-            CommandTemplate command = FindCommand(dataByte, opCodeByte);
-            
-            // Append additional bytes in big-endian order: [highByte, lowByte]
-            // Source is little-endian (low then high), so read low first, then high, and store as high, low
-            for(int i = 0; i < command.AdditionalBytesNeeded; i += 2) // Two bytes added per iteration
+            if(shouldTakeFromNextSpan)
             {
-                byte lowByte  = (byte)lineSpan.Slice2Char();
-                byte highByte = (byte)lineSpan.Slice2Char();
-                command.CommandBytes.Add(highByte);
-                command.CommandBytes.Add(lowByte);
+                lineSpan.Slice4Char(); // 4 is the max that would be taken from the next span
+                shouldTakeFromNextSpan = false;
             }
+
+            byte parseLength = (byte)lineSpan.Length;
+
+            for(int i = 0; i < parseLength; i += 4)
+            {   
+                byte dataByte = (byte)lineSpan.Slice2Char();
+                byte opCodeByte = (byte)lineSpan.Slice2Char();
+
+                CommandTemplate command = FindCommand(dataByte, opCodeByte);
             
-            commands.Add(command);
+                for(int j = 0; j < command.AdditionalBytesNeeded; j += 2) // Two bytes added per iteration
+                {
+                    if(lineSpan.Length == 0)
+                    {
+                        shouldTakeFromNextSpan = true;
+                        ReadOnlySpan<char> nextlineSpan = hexLines[lineNum + 1].AsSpan();
+                        byte nextlowByte  = (byte)nextlineSpan.Slice2Char();
+                        byte nexthighByte = (byte)nextlineSpan.Slice2Char();
+                        command.CommandBytes.Add(nexthighByte);
+                        command.CommandBytes.Add(nextlowByte);
+                    }
+                    else
+                    {
+                        byte lowByte  = (byte)lineSpan.Slice2Char();
+                        byte highByte = (byte)lineSpan.Slice2Char();
+                        command.CommandBytes.Add(highByte);
+                        command.CommandBytes.Add(lowByte); 
+                    }
+                    
+                    i += 4;
+                }
+                
+                commands.Add(command);   
+            }
         }
         
         return commands;
