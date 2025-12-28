@@ -22,14 +22,17 @@ public class LineFormat
 
 public class FileParse
 {   
-    public MachineData ParseCommand(int currentCmdIndex, List<CommandTemplate> commands, MachineData previousState)
+    public MachineData.Diff ParseCommand(MachineData previousState)
     {
 
         MachineData newState = previousState; // Made for ease of readibility 
 
-        commands[currentCmdIndex].RunCommand(newState);
+        newState.commandToParse?.RunCommand(newState);
+
+        MachineData.Diff diff = new MachineData.Diff();
+        diff = MachineData.CalculateChanges(previousState, newState);
         
-        return newState;
+        return diff;
     }
 
     public static void Main()

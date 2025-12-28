@@ -88,32 +88,32 @@ function App() {
         </div>
         <div className="code-panel">
           {hexText && (
-            <div style={{ color: 'white', padding: '10px', textAlign: 'left' }}>
-              <div style={{ marginBottom: '10px', fontWeight: 800 }}>Hex File</div>
-              <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'monospace' }}>{hexText}</pre>
+            <div className="code-block">
+              <div className="code-heading">Hex File</div>
+              <pre className="code-pre">{hexText}</pre>
             </div>
           )}
-          {loading && <div style={{ color: 'white', padding: '10px' }}>Converting...</div>}
-          {error && <div style={{ color: 'salmon', padding: '10px' }}>{error}</div>}
+          {loading && <div className="code-status">Converting...</div>}
+          {error && <div className="code-status error">{error}</div>}
           {!loading && !error && commands.length > 0 && (
-            <div style={{ color: 'white', padding: '10px', textAlign: 'left' }}>
-              <div style={{ marginBottom: '10px', fontWeight: 800 }}>Instructions ({commands.length}):</div>
-              <ol>
+            <div className="code-block">
+              <div className="code-heading">Instructions ({commands.length}):</div>
+              <ol className="instruction-list">
                 {commands.map((c, idx) => (
-                  <li key={idx} style={{ marginBottom: '6px' }}>
-                    <span style={{ fontFamily: 'monospace' }}>{c.identifier}</span>
+                  <li key={idx} className="instruction-item">
+                    <span className="instruction-name">{c.identifier}</span>
                     {c.commandBytes?.length ? (
                       <>
-                        <span style={{ fontFamily: 'monospace' }}>
-                          {`  [${c.commandBytes.map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`}
+                        <span className="instruction-bytes">
+                          [{c.commandBytes.map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]
                         </span>
-                        <span style={{ fontFamily: 'monospace', marginLeft: 8, opacity: 0.85 }}>
+                        <span className="instruction-bits">
                           {c.commandBytes.map(b => b.toString(2).padStart(8, '0')).join(' ')}
                         </span>
                       </>
                     ) : null}
                     {typeof c.additionalBytesNeeded === 'number' ? (
-                      <span style={{ opacity: 0.7 }}>{`  (+${c.additionalBytesNeeded} bytes)`}</span>
+                      <span className="instruction-meta">(+{c.additionalBytesNeeded} bytes)</span>
                     ) : null}
                   </li>
                 ))}

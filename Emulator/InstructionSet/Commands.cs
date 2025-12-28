@@ -17,6 +17,7 @@ public class SRAM
 
 public class MachineData
 {
+    public CommandTemplate? commandToParse;
     public int PC;
     public byte[] DataSpace = new byte[2000];
 
@@ -29,6 +30,59 @@ public class MachineData
         PC = 0;
         // Initialize SP to the end of the DataSpace (stack grows down)
         SP = DataSpace.Length; 
+    }
+
+    public MachineData Clone()
+    {
+        return new MachineData
+        {
+            PC = PC,
+            SP = SP,
+            StatusRegister = new SREG { SREGByte = StatusRegister.SREGByte },
+            DataSpace = (byte[])DataSpace.Clone(),
+            commandToParse = commandToParse
+        };
+    }
+
+    public class DataChange
+    {
+        public int Index { get; init; }
+        public byte Before { get; init; }
+        public byte After { get; init; }
+    }
+
+    public class Diff
+    {
+        public int? PC { get; init; }
+        public int? SP { get; init; }
+        public byte? SREGByte { get; init; }
+        public List<DataChange> DataChanges { get; init; } = new List<DataChange>();
+    }
+
+    public static Diff CalculateChanges(MachineData before, MachineData after)
+    {
+        if (before == null || after == null) throw new ArgumentNullException("before/after cannot be null");
+
+        var diff = new Diff
+        {
+            PC = before.PC == after.PC ? null : after.PC,
+            SP = before.SP == after.SP ? null : after.SP,
+            SREGByte = before.StatusRegister.SREGByte == after.StatusRegister.SREGByte ? null : after.StatusRegister.SREGByte,
+            DataChanges = new List<DataChange>()
+        };
+
+        int length = Math.Min(before.DataSpace.Length, after.DataSpace.Length);
+        for (int i = 0; i < length; i++)
+        {
+            byte b = before.DataSpace[i];
+            byte a = after.DataSpace[i];
+            if (b != a)
+            {
+                diff.DataChanges.Add(new DataChange { Index = i, Before = b, After = a });
+            }
+        }
+
+        return diff;
     }
 
     // Push a single byte onto the DataSpace-backed stack (stack grows down)
