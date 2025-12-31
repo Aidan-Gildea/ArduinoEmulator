@@ -17,7 +17,7 @@ public class SRAM
 
 public class MachineData
 {
-    public CommandTemplate? commandToParse;
+    public CommandTemplate? CommandToParse;
     public int PC;
     public byte[] DataSpace = new byte[2000];
 
@@ -40,7 +40,7 @@ public class MachineData
             SP = SP,
             StatusRegister = new SREG { SREGByte = StatusRegister.SREGByte },
             DataSpace = (byte[])DataSpace.Clone(),
-            commandToParse = commandToParse
+            CommandToParse = CommandToParse
         };
     }
 

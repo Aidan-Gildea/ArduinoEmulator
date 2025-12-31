@@ -12,7 +12,7 @@ namespace API.Controllers;
 public class VisualizerController : ControllerBase
 {
     [HttpPost("FindAllInstructions")]
-    public List<CommandTemplate> FindAllInstructions([FromBody] string[] dataLines)
+    public List<CommandInformation> FindAllInstructions([FromBody] string[] dataLines)
     {
         FindInstruction find = new FindInstruction();
 
@@ -20,28 +20,10 @@ public class VisualizerController : ControllerBase
     }
 
     [HttpPost("RunInstruction")]
-    public MachineData.Diff RunInstruction()
-    {    
-        // Test setup: Create ADD R4, R2 instruction (R4 = R4 + R2)
-        // Opcode bytes: [0x0C, 0x42]
-        var addInstruction = new ADD(new List<byte> { 0x0C, 0x42 });
-        
-        var data = new MachineData();
-        
-        // Set initial register values for testing
-        data.DataSpace[2] = 0x05;  // R2 = 5
-        data.DataSpace[3] = 0x07;  // R3 = 7
-        data.DataSpace[4] = 0x03;  // R4 = 3
-        
-        // Clone state before execution
-        MachineData before = data.Clone();
-        
-        // Run the instruction (R4 will become 3 + 5 = 8)
-        addInstruction.RunCommand(data);
-        
-        // Calculate diff
-        var diff = MachineData.CalculateChanges(before, data);
-        
-        return diff;
+    public MachineData.Diff RunInstruction([FromBody] MachineData state)
+    {   
+        Parse parse = new Parse();
+
+        return parse.ParseCommand(state);
     }
 }

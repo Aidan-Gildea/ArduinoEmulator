@@ -1,20 +1,35 @@
 import { useRef, useState } from 'react'
 import './App.css'
-import { findAllInstructions } from './api'
-import type { CommandTemplate } from './api'
+import { findAllInstructions, runInstruction } from './api'
+import type { CommandInformation, MachineData, MachineDataDiff } from './api'
 
 function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigits, 16); }
 
 let dataLines: string[] = [];
-let instructionPosition = 0;
 
 function App() {
   const registers = Array.from({ length: 32 }, (_, i) => i);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [commands, setCommands] = useState<CommandTemplate[]>([]);
+  const [commands, setCommands] = useState<CommandInformation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hexText, setHexText] = useState<string>("");
+  const [instructionPosition, setInstructionPosition] = useState(0);
+  const [statusText, setStatusText] = useState<string>();
+  const [machineData, setMachineData] = useState<MachineData>({
+    CommandToParse: commands[instructionPosition],
+    PC: 0,
+    DataSpace: new Array(2000).fill(0),
+    SP: 2000,
+    StatusRegister: { sregByte: 0 },
+  });
+  const [changedRegisters, setChangedRegisters] = useState<Set<number>>(new Set());
+
+  const formatCommandBytes = (bytes: number[]) =>
+    bytes.map((b) => `0x${b.toString(16).padStart(2, '0').toUpperCase()}`).join(' ');
+
+  const formatCommandBits = (bytes: number[]) =>
+    bytes.map((b) => b.toString(2).padStart(8, '0')).join(' ');
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -43,10 +58,24 @@ function App() {
     fileInputRef.current?.click();
   };
 
-  const handleStepClick = () => {
-    
-    
-    instructionPosition++;
+  const handleStepClick = async () => {
+    let diff: MachineDataDiff;
+    machineData.CommandToParse = commands[instructionPosition];
+    diff = await runInstruction(machineData);
+
+    if(diff.pc != null) machineData.PC = diff.pc;
+    if(diff.sregByte != null) machineData.StatusRegister = diff.sregByte;
+    if(diff.sp != null) machineData.SP = diff.sp;
+
+    for(let i = 0; i < diff.dataChanges.length; i++)
+    {
+      if(machineData.DataSpace[diff.dataChanges[i].index] == diff.dataChanges[i].before) continue; // verification that there was a change
+
+      machineData.DataSpace[diff.dataChanges[i].index] = diff.dataChanges[i].after;
+    }
+    setInstructionPosition(instructionPosition + 1);
+    machineData.CommandToParse = commands[instructionPosition];
+    ;
   };
 
   const handleConvertToInstructions = async () => {
@@ -55,6 +84,8 @@ function App() {
       setError(null);
       const result = await findAllInstructions(dataLines);
       setCommands(result);
+      setInstructionPosition(0);
+      setMachineData((prev) => ({ ...prev, CommandToParse: result[0] }));
     } catch (e: any) {
       setError(e?.message ?? 'Failed to convert to instructions');
     } finally {
@@ -95,31 +126,6 @@ function App() {
           )}
           {loading && <div className="code-status">Converting...</div>}
           {error && <div className="code-status error">{error}</div>}
-          {!loading && !error && commands.length > 0 && (
-            <div className="code-block">
-              <div className="code-heading">Instructions ({commands.length}):</div>
-              <ol className="instruction-list">
-                {commands.map((c, idx) => (
-                  <li key={idx} className="instruction-item">
-                    <span className="instruction-name">{c.identifier}</span>
-                    {c.commandBytes?.length ? (
-                      <>
-                        <span className="instruction-bytes">
-                          [{c.commandBytes.map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]
-                        </span>
-                        <span className="instruction-bits">
-                          {c.commandBytes.map(b => b.toString(2).padStart(8, '0')).join(' ')}
-                        </span>
-                      </>
-                    ) : null}
-                    {typeof c.additionalBytesNeeded === 'number' ? (
-                      <span className="instruction-meta">(+{c.additionalBytesNeeded} bytes)</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
         </div>
       </div>
       <div className="right-side-panel">
@@ -133,17 +139,22 @@ function App() {
           <div className="info-section">
             <div className="info-item">
               <span className="info-label">Hex Instruction:</span>
-              <span className="info-value">0x0000</span>
+              <span className="info-value">
+                {commands[instructionPosition]?.CommandName ?? 'NONE'}
+              </span>
             </div>
             <div className="info-item">
               <span className="info-label">Program Counter:</span>
-              <span className="info-value">0x0000</span>
+              <span className="info-value">{machineData.PC}</span>
             </div>
           </div>
           <div className="register-grid-panel">
             {registers.map((registerNum) => (
-              <div key={registerNum} className="register-box-panel">
-                R{registerNum}: 0x00
+              <div 
+                key={registerNum} 
+                className={`register-box-panel ${changedRegisters.has(registerNum) ? 'register-changed' : ''}`}
+              >
+                R{registerNum}: 0x{(machineData.DataSpace[registerNum] || 0).toString(16).padStart(2, '0').toUpperCase()}
               </div>
             ))}
           </div>

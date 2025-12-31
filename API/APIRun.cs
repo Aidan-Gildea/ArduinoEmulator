@@ -34,8 +34,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-app.UseHttpsRedirection();
+else
+{
+    app.UseHttpsRedirection();
+}
 
 // Enable CORS policy early in the pipeline
 app.UseCors("DevAllow");

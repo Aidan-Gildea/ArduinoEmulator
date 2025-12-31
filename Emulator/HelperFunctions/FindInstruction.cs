@@ -73,10 +73,10 @@ public class FindInstruction
 
         return new UnknownCommand(commandBytes);
     }
-
-    public List<CommandTemplate> FindAllCommands(string[] hexLines)
+    // Should not send the command themselves, creates complications later 
+    public List<CommandInformation> FindAllCommands(string[] hexLines)
     {
-        List<CommandTemplate> commands = new List<CommandTemplate>();
+        List<CommandInformation> commands = new List<CommandInformation>();
         bool shouldTakeFromNextSpan = false;
     
         for(int lineNum = 0; lineNum < hexLines.Length; lineNum++)
@@ -120,7 +120,11 @@ public class FindInstruction
                     i += 4;
                 }
                 
-                commands.Add(command);   
+                commands.Add(new CommandInformation
+                {
+                    CommandName = command.Identifier,
+                    CommandBytes = command.CommandBytes,
+                });   
             }
         }
         

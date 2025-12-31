@@ -11,32 +11,17 @@ using System.Diagnostics.Tracing;
 
 namespace Emulator;
 
-public class LineFormat
-{
-    public ushort byteCount;
-    public uint address;
-    public ushort recordType;
-    public List<CommandTemplate> commands = new List<CommandTemplate>();
-    public ushort checksum;
-};
-
-public class FileParse
+public class Parse
 {   
-    public MachineData.Diff ParseCommand(MachineData previousState)
+    public MachineData.Diff ParseCommand(MachineData state)
     {
+        MachineData previousState = state.Clone(); // MachineData previous = data; DOESN'T WORK!! Classes are reference types, they have the same pointer
 
-        MachineData newState = previousState; // Made for ease of readibility 
-
-        newState.commandToParse?.RunCommand(newState);
+        state.CommandToParse?.RunCommand(state);
 
         MachineData.Diff diff = new MachineData.Diff();
-        diff = MachineData.CalculateChanges(previousState, newState);
+        diff = MachineData.CalculateChanges(previousState, state);
         
         return diff;
-    }
-
-    public static void Main()
-    {
-        
     }
 }
