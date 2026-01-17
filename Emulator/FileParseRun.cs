@@ -13,11 +13,13 @@ namespace Emulator;
 
 public class Parse
 {   
+
     public MachineData.Diff ParseCommand(MachineData state)
     {
         MachineData previousState = state.Clone(); // MachineData previous = data; DOESN'T WORK!! Classes are reference types, they have the same pointer
 
-        state.CommandToParse?.RunCommand(state);
+        //state.CommandToParse?.RunCommand(state);
+        throw new ArgumentException("Commented out code here.");
 
         MachineData.Diff diff = new MachineData.Diff();
         diff = MachineData.CalculateChanges(previousState, state);

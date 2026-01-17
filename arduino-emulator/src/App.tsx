@@ -61,6 +61,7 @@ function App() {
   const handleStepClick = async () => {
     let diff: MachineDataDiff;
     machineData.CommandToParse = commands[instructionPosition];
+
     diff = await runInstruction(machineData);
 
     if(diff.pc != null) machineData.PC = diff.pc;
@@ -75,7 +76,6 @@ function App() {
     }
     setInstructionPosition(instructionPosition + 1);
     machineData.CommandToParse = commands[instructionPosition];
-    ;
   };
 
   const handleConvertToInstructions = async () => {
@@ -126,6 +126,22 @@ function App() {
           )}
           {loading && <div className="code-status">Converting...</div>}
           {error && <div className="code-status error">{error}</div>}
+
+          <div className="code-block">
+            {commands.map((command, index) => (
+              <div key={index} className="instruction-item">
+                <div className="instruction-name">
+                  {`Instruction Name: ${command.CommandName}`}
+                </div>
+                <div className="instruction-bytes">
+                  {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
+                </div>
+                <div className="instruction-bits">
+                  {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
+                </div>
+              </div>  
+            ))}
+          </div>
         </div>
       </div>
       <div className="right-side-panel">

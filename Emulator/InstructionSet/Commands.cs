@@ -17,7 +17,7 @@ public class SRAM
 
 public class MachineData
 {
-    public CommandTemplate? CommandToParse;
+    public CommandInformation? CommandToParse {get; set;}
     public int PC;
     public byte[] DataSpace = new byte[2000];
 

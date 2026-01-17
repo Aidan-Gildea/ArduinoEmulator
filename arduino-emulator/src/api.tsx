@@ -3,7 +3,7 @@ export interface SREG {
 }
 
 export interface MachineData {
-    CommandToParse?: CommandInformation;
+    CommandToParse: CommandInformation;
     PC: number;
     DataSpace: number[];
     SP: number;
@@ -45,14 +45,13 @@ export const findAllInstructions = async (dataLines: string[]): Promise<CommandI
     }
 
     const responseJson = await response.json();
-    console.log(responseJson);
 
     return responseJson;
 };
 
 export const runInstruction = async (state: MachineData): Promise<MachineDataDiff> => {
     console.log(`Cmd: ${state.CommandToParse?.CommandName}`);
-    var result = JSON.stringify(state);
+    let result = JSON.stringify(state);
     console.log(`Stringify: ${result}`);
     const response = await fetch(`${API_BASE_URL}/Visualizer/RunInstruction`, {
         method: 'POST',

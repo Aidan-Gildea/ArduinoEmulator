@@ -12,11 +12,13 @@ namespace API.Controllers;
 public class VisualizerController : ControllerBase
 {
     [HttpPost("FindAllInstructions")]
-    public List<CommandInformation> FindAllInstructions([FromBody] string[] dataLines)
+    public IActionResult FindAllInstructions([FromBody] string[] dataLines)
     {
         FindInstruction find = new FindInstruction();
 
-        return find.FindAllCommands(dataLines);
+        string serializedJson = JsonSerializer.Serialize(find.FindAllCommands(dataLines));
+
+        return Ok(serializedJson);
     }
 
     [HttpPost("RunInstruction")]
