@@ -147,6 +147,9 @@ public class SREG
     }
 }
 
+[System.AttributeUsage(System.AttributeTargets.Class)]
+public class GenerateCommandRegistryAttribute : System.Attribute { }
+
 public abstract class CommandTemplate
 {
     public List<byte> CommandBytes { get; protected set; }
@@ -170,6 +173,7 @@ public class UnknownCommand(List<byte> commandBytes) : CommandTemplate(commandBy
     public override void RunCommand(MachineData program) { }
 }
 
+[GenerateCommandRegistry]
 public class ADD(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "ADD";
@@ -201,6 +205,7 @@ public class ADD(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class ADC(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "ADC";
@@ -233,6 +238,7 @@ public class ADC(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class ADIW(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "ADIW";
@@ -268,6 +274,7 @@ public class ADIW(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class BRBC(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "BRBC";
@@ -286,6 +293,7 @@ public class BRBC(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class BRBS(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "BRBS";
@@ -304,6 +312,7 @@ public class BRBS(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class CALL(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "CALL";
@@ -322,6 +331,7 @@ public class CALL(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class CLI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "CLI";
@@ -335,6 +345,7 @@ public class CLI(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class CPC(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "CPC";
@@ -373,6 +384,7 @@ public class CPC(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class CPI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "CPI";
@@ -405,6 +417,7 @@ public class CPI(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class DEC(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "DEC";
@@ -424,6 +437,7 @@ public class DEC(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class EOR(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "EOR";
@@ -445,6 +459,7 @@ public class EOR(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class IN(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "IN";
@@ -464,6 +479,7 @@ public class IN(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class JMP(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "JMP";
@@ -481,6 +497,7 @@ public class JMP(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class LDI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "LDI";
@@ -501,6 +518,7 @@ public class LDI(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class LDX(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "LDX";
@@ -550,6 +568,7 @@ public class LDX(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class LDY(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "LDY";
@@ -599,6 +618,7 @@ public class LDY(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class LDZ(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "LDZ";
@@ -648,6 +668,7 @@ public class LDZ(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class ORI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "ORI";
@@ -668,6 +689,7 @@ public class ORI(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class OUT(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "OUT";
@@ -687,6 +709,7 @@ public class OUT(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class PUSH(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "PUSH";
@@ -704,6 +727,7 @@ public class PUSH(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class RET(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "RET";
@@ -717,6 +741,7 @@ public class RET(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class RETI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "RETI";
@@ -731,6 +756,7 @@ public class RETI(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class RJMP(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "RJMP";
@@ -747,6 +773,7 @@ public class RJMP(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class SBI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "SBI";
@@ -765,6 +792,7 @@ public class SBI(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class SEI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "SEI";
@@ -778,6 +806,7 @@ public class SEI(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class STX(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "STX";
@@ -827,6 +856,7 @@ public class STX(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class STY(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "STY";
@@ -876,6 +906,7 @@ public class STY(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class STZ(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "STZ";
@@ -925,6 +956,7 @@ public class STZ(List<byte> commandBytes) : CommandTemplate(commandBytes)
     }
 }
 
+[GenerateCommandRegistry]
 public class SUBI(List<byte> commandBytes) : CommandTemplate(commandBytes)
 {
     public override string Identifier => "SUBI";
