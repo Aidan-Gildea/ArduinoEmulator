@@ -19,9 +19,9 @@ public class Parse
     public MachineData.Diff ParseCommand(MachineData state)
     {
         MachineData previousState = state.Clone(); // MachineData previous = data; DOESN'T WORK!! Classes are reference types, they have the same pointer
-        // Type commandType = CommandRegistry.Map[state.CommandToParse.CommandName];
-        // object myObject = Activator.CreateInstance(commandType, (state.CommandToParse.CommandBytes));
-        // ;
+        Func<List<byte>, CommandTemplate> test = CommandRegistry.Map[state.CommandToParse.CommandName];
+        CommandTemplate resultingCommand = test(state.CommandToParse.CommandBytes);
+        ;
         //state.CommandToParse?.RunCommand(state);
         //throw new ArgumentException("Commented out code here.");
 

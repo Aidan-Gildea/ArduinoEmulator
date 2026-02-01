@@ -1,4 +1,5 @@
 using System.Reflection.PortableExecutable;
+using SharedDomainTypes;
 
 var builder = WebApplication.CreateBuilder(args);
 
