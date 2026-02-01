@@ -7,7 +7,8 @@ function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigi
 
 let dataLines: string[] = [];
 
-function App() {
+function App() 
+{
   const registers = Array.from({ length: 32 }, (_, i) => i);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [commands, setCommands] = useState<CommandInformation[]>([]);
@@ -16,13 +17,15 @@ function App() {
   const [hexText, setHexText] = useState<string>("");
   const [instructionPosition, setInstructionPosition] = useState(0);
   const [statusText, setStatusText] = useState<string>();
-  const [machineData, setMachineData] = useState<MachineData>({
+  const [machineData, setMachineData] = useState<MachineData>(
+  {
     CommandToParse: commands[instructionPosition],
     PC: 0,
     DataSpace: new Array(2000).fill(0),
     SP: 2000,
     StatusRegister: { sregByte: 0 },
   });
+
   const [changedRegisters, setChangedRegisters] = useState<Set<number>>(new Set());
 
   const formatCommandBytes = (bytes: number[]) =>
@@ -32,26 +35,28 @@ function App() {
     bytes.map((b) => b.toString(2).padStart(8, '0')).join(' ');
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
+  const file = event.target.files?.[0];
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        setHexText(content);
-        setCommands([]);
-        let lines: string[]  = content.split('\n');
+  if (file) 
+  {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setHexText(content);
+      setCommands([]);
+      let lines: string[]  = content.split('\n');
 
-        for(let i = 0; i < lines.length; i++) {
+      for(let i = 0; i < lines.length; i++) {
 
-          let dataCountHex: string = lines[i].slice(1, 3);
-          let dataCount: number = ConvertHexToNumber(dataCountHex);
-          dataLines[i] = lines[i].slice(9, 9 + 2 * dataCount);
-        }
-      };
-      reader.readAsText(file);
-    }
-    event.target.value = "";
+        let dataCountHex: string = lines[i].slice(1, 3);
+        let dataCount: number = ConvertHexToNumber(dataCountHex);
+        dataLines[i] = lines[i].slice(9, 9 + 2 * dataCount);
+      }
+    };
+    reader.readAsText(file);
+  }
+  
+  event.target.value = "";
   };
 
   const handleButtonClick = () => {

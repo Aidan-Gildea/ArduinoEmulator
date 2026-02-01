@@ -1,3 +1,5 @@
+using SharedDomainTypes;
+
 namespace Emulator;
 
 public class FindInstruction

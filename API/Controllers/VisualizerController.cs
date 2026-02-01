@@ -4,6 +4,7 @@ using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
+using SharedDomainTypes;
 
 namespace API.Controllers;
 
