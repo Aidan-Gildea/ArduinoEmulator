@@ -50,9 +50,6 @@ export const findAllInstructions = async (dataLines: string[]): Promise<CommandI
 };
 
 export const runInstruction = async (state: MachineData): Promise<MachineDataDiff> => {
-    console.log(`Cmd: ${state.CommandToParse?.CommandName}`);
-    let result = JSON.stringify(state);
-    console.log(`Stringify: ${result}`);
     const response = await fetch(`${API_BASE_URL}/Visualizer/RunInstruction`, {
         method: 'POST',
         headers: {

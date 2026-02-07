@@ -44,6 +44,15 @@ function App()
       const content = e.target?.result as string;
       setHexText(content);
       setCommands([]);
+      setInstructionPosition(0);
+      setChangedRegisters(new Set());
+      setMachineData({
+        CommandToParse: { CommandName: 'NONE', CommandBytes: [] },
+        PC: 0,
+        DataSpace: new Array(2000).fill(0),
+        SP: 2000,
+        StatusRegister: { sregByte: 0 },
+      });
       let lines: string[]  = content.split('\n');
 
       for(let i = 0; i < lines.length; i++) {
@@ -61,6 +70,7 @@ function App()
 
   const handleButtonClick = () => {
     fileInputRef.current?.click();
+    
   };
 
   const handleStepClick = async () => {
@@ -73,12 +83,23 @@ function App()
     if(diff.sregByte != null) machineData.StatusRegister = diff.sregByte;
     if(diff.sp != null) machineData.SP = diff.sp;
 
-    for(let i = 0; i < diff.dataChanges.length; i++)
-    {
-      if(machineData.DataSpace[diff.dataChanges[i].index] == diff.dataChanges[i].before) continue; // verification that there was a change
+    console.log(`Diff Change Length ${diff.dataChanges.length}`);
 
+    let changedRegistersSet: Set<number> = new Set<number>;
+
+    for(let i = 0; i < diff.dataChanges.length; i++) // Code cannot register a change properly. 
+    {
+      //if(machineData.DataSpace[diff.dataChanges[i].index] == diff.dataChanges[i].before) continue; // verification that there was a change
+
+      if(diff.dataChanges[i].index <= 31)
+      {
+        changedRegistersSet.add(diff.dataChanges[i].index);
+      }
+
+      console.log(`Data Space Change at ${diff.dataChanges[i].index}`);
       machineData.DataSpace[diff.dataChanges[i].index] = diff.dataChanges[i].after;
     }
+    setChangedRegisters(changedRegistersSet);
     setInstructionPosition(instructionPosition + 1);
     machineData.CommandToParse = commands[instructionPosition];
   };
@@ -171,10 +192,7 @@ function App()
           </div>
           <div className="register-grid-panel">
             {registers.map((registerNum) => (
-              <div 
-                key={registerNum} 
-                className={`register-box-panel ${changedRegisters.has(registerNum) ? 'register-changed' : ''}`}
-              >
+              <div key={registerNum} className={`register-box-panel ${changedRegisters.has(registerNum) ? 'register-changed' : ''}`}>
                 R{registerNum}: 0x{(machineData.DataSpace[registerNum] || 0).toString(16).padStart(2, '0').toUpperCase()}
               </div>
             ))}
