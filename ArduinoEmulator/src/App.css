@@ -43,6 +43,76 @@
   border: 3px solid white;
   height: var(--board-visual-height);
   margin: var(--panel-margin) var(--panel-margin) 0px var(--panel-margin);
+  overflow: hidden;
+  padding: 10px;
+}
+
+.component-scroll-wrapper {
+  border: 3px solid rgba(255,255,255,0.85);
+  border-radius: 8px;
+  height: 70px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.component-drop-zone {
+  position: relative;
+  margin-top: 10px;
+  border: 3px solid rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  height: calc(100% - 80px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.placed-component-thumb {
+  position: absolute;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  cursor: grab;
+  user-select: none;
+}
+
+.placed-component-thumb:active {
+  cursor: grabbing;
+}
+
+.component-scroll-grid {
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.component-image-box {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border: 2px solid rgba(255,255,255,0.85);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.component-image-label {
+  color: rgba(255,255,255,0.85);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.component-image-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .data-panel {

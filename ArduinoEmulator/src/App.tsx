@@ -10,10 +10,13 @@ let dataLines: string[] = [];
 function App() 
 {
   const registers = Array.from({ length: 32 }, (_, i) => i);
+  const componentSlots = Array.from({ length: 72 }, (_, i) => i + 1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const [activeLeftTab, setActiveLeftTab] = useState<'writeCode' | 'uploadHex'>('uploadHex');
   const [codeInput, setCodeInput] = useState<string>('int main() \n{  \n\n}');
   const [commands, setCommands] = useState<CommandInformation[]>([]);
+  const [placedLeds, setPlacedLeds] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hexText, setHexText] = useState<string>("");
@@ -118,6 +121,83 @@ function App()
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLedDragStart = (event: React.DragEvent<HTMLImageElement>) => {
+    event.dataTransfer.setData('componentType', 'LED');
+    event.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDropZoneDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDropInZone = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const componentType = event.dataTransfer.getData('componentType');
+    if (componentType !== 'LED') return;
+
+    const dropZoneRect = event.currentTarget.getBoundingClientRect();
+    const iconSize = 96;
+
+    const rawX = event.clientX - dropZoneRect.left - iconSize / 2;
+    const rawY = event.clientY - dropZoneRect.top - iconSize / 2;
+
+    const x = Math.max(0, Math.min(rawX, dropZoneRect.width - iconSize));
+    const y = Math.max(0, Math.min(rawY, dropZoneRect.height - iconSize));
+
+    setPlacedLeds((prev) => [...prev, { id: Date.now() + prev.length, x, y }]);
+  };
+
+  const handlePlacedLedMouseDown = (id: number, event: React.MouseEvent<HTMLImageElement>) => {
+    event.preventDefault();
+
+    const dropZoneElement = dropZoneRef.current;
+    if (!dropZoneElement) return;
+
+    const led = placedLeds.find((item) => item.id === id);
+    if (!led) return;
+
+    const dropZoneRect = dropZoneElement.getBoundingClientRect();
+    const iconSize = 96;
+    const pointerOffsetX = event.clientX - (dropZoneRect.left + led.x);
+    const pointerOffsetY = event.clientY - (dropZoneRect.top + led.y);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const latestDropZoneRect = dropZoneElement.getBoundingClientRect();
+
+      const nextX = moveEvent.clientX - latestDropZoneRect.left - pointerOffsetX;
+      const nextY = moveEvent.clientY - latestDropZoneRect.top - pointerOffsetY;
+
+      const clampedX = Math.max(0, Math.min(nextX, latestDropZoneRect.width - iconSize));
+      const clampedY = Math.max(0, Math.min(nextY, latestDropZoneRect.height - iconSize));
+
+      setPlacedLeds((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, x: clampedX, y: clampedY } : item))
+      );
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      const latestDropZoneRect = dropZoneElement.getBoundingClientRect();
+
+      const isInsideDropZone =
+        upEvent.clientX >= latestDropZoneRect.left &&
+        upEvent.clientX <= latestDropZoneRect.right &&
+        upEvent.clientY >= latestDropZoneRect.top &&
+        upEvent.clientY <= latestDropZoneRect.bottom;
+
+      if (!isInsideDropZone) {
+        setPlacedLeds((prev) => prev.filter((item) => item.id !== id));
+      }
+
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
   };
 
   const handleCodeEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -292,7 +372,42 @@ function App()
           Components
         </div>
         <div className="board-visual-panel">
-          
+          <div className="component-scroll-wrapper">
+            <div className="component-scroll-grid">
+              {componentSlots.map((slotNum) => (
+                <div key={slotNum} className="component-image-box">
+                  {slotNum === 1 ? (
+                    <img
+                      className="component-image-thumb"
+                      src="/LED.png"
+                      alt="LED"
+                      draggable
+                      onDragStart={handleLedDragStart}
+                    />
+                  ) : (
+                    <span className="component-image-label">{slotNum}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div
+            className="component-drop-zone"
+            ref={dropZoneRef}
+            onDragOver={handleDropZoneDragOver}
+            onDrop={handleDropInZone}
+          >
+            {placedLeds.map((led) => (
+              <img
+                key={led.id}
+                className="placed-component-thumb"
+                src="/LED.png"
+                alt="Placed LED"
+                style={{ left: `${led.x}px`, top: `${led.y}px` }}
+                onMouseDown={(event) => handlePlacedLedMouseDown(led.id, event)}
+              />
+            ))}
+          </div>
         </div>
         <div className="data-panel">
           <div className="info-section">
