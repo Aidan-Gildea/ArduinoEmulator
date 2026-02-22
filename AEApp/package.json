@@ -1,0 +1,15 @@
+{
+  "name": "AEApp",
+  "version": "1.0.0",
+  "description": "\"Testing\"",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "\"Liz\"",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^40.4.1"
+  }
+}
