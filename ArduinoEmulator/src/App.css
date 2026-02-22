@@ -140,6 +140,71 @@
   bottom: 0px;
   display: flex;
   flex-direction: column;
+  height: 100%;
+}
+
+.left-tab-row {
+  margin: var(--panel-margin) var(--panel-margin) 0px var(--panel-margin);
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.left-tab-button {
+  min-width: 170px;
+  height: 52px;
+  border: 3px solid white;
+  background: linear-gradient(145deg, #ffffff, #e6e6e6);
+  color: black;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 10px 12px;
+  text-align: center;
+  box-shadow:
+    3px 3px 8px rgba(0, 0, 0, 0.3),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.1),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+.left-tab-button.active {
+  border-color: #66b3ff;
+  background: linear-gradient(145deg, #b3d9ff, #99ccff);
+}
+
+.left-main-panel {
+  flex: 1;
+  border: 3px solid white;
+  margin: 0px var(--panel-margin) var(--panel-margin) var(--panel-margin);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.code-editor-panel {
+  flex-grow: 1;
+  margin: var(--panel-margin);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.code-editor-textarea {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+  resize: none;
+  overflow: auto;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-radius: 10px;
+  padding: 14px;
+  background: rgba(0,0,0,0.25);
+  color: white;
+  font-family: "DM Mono", "JetBrains Mono", monospace;
+  font-size: 15px;
+  outline: none;
 }
 
 .code-actions-panel {
@@ -159,6 +224,7 @@
   height: 800px;
   border: 3px dashed white;
   overflow: auto;
+  min-height: 0;
 }
 
 .code-block {

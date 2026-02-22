@@ -11,12 +11,13 @@ function App()
 {
   const registers = Array.from({ length: 32 }, (_, i) => i);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeLeftTab, setActiveLeftTab] = useState<'writeCode' | 'uploadHex'>('uploadHex');
+  const [codeInput, setCodeInput] = useState<string>('int main() \n{  \n\n}');
   const [commands, setCommands] = useState<CommandInformation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hexText, setHexText] = useState<string>("");
   const [instructionPosition, setInstructionPosition] = useState(0);
-  const [statusText, setStatusText] = useState<string>();
   const [machineData, setMachineData] = useState<MachineData>(
   {
     CommandToParse: commands[instructionPosition],
@@ -119,55 +120,171 @@ function App()
     }
   };
 
+  const handleCodeEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Tab') return;
+
+    event.preventDefault();
+
+    const indent = '  ';
+
+    const textarea = event.currentTarget;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    if (!event.shiftKey) {
+      const updated = `${codeInput.slice(0, start)}${indent}${codeInput.slice(end)}`;
+      setCodeInput(updated);
+      requestAnimationFrame(() => {
+        const nextCursor = start + indent.length;
+        textarea.selectionStart = nextCursor;
+        textarea.selectionEnd = nextCursor;
+      });
+      return;
+    }
+
+    const lineStart = codeInput.lastIndexOf('\n', start - 1) + 1;
+    const lineEndIndex = codeInput.indexOf('\n', end);
+    const lineEnd = lineEndIndex === -1 ? codeInput.length : lineEndIndex;
+
+    const block = codeInput.slice(lineStart, lineEnd);
+    const lines = block.split('\n');
+    let offset = 0;
+    const lineAdjustments: { start: number; removed: number }[] = [];
+
+    const outdented = lines
+      .map((line) => {
+        const currentLineStart = lineStart + offset;
+        let removed = 0;
+        let updatedLine = line;
+
+        if (line.startsWith(indent)) {
+          removed = indent.length;
+          updatedLine = line.slice(indent.length);
+        } else if (line.startsWith('\t')) {
+          removed = 1;
+          updatedLine = line.slice(1);
+        }
+
+        lineAdjustments.push({ start: currentLineStart, removed });
+        offset += line.length + 1;
+
+        return updatedLine;
+      })
+      .join('\n');
+
+    const adjustPosition = (position: number) => {
+      const deduction = lineAdjustments.reduce((total, lineInfo) => {
+        if (position <= lineInfo.start || lineInfo.removed === 0) {
+          return total;
+        }
+
+        const charsIntoLine = position - lineInfo.start;
+        return total + Math.min(lineInfo.removed, charsIntoLine);
+      }, 0);
+
+      return position - deduction;
+    };
+
+    const updated = `${codeInput.slice(0, lineStart)}${outdented}${codeInput.slice(lineEnd)}`;
+    setCodeInput(updated);
+    requestAnimationFrame(() => {
+      const nextStart = Math.max(lineStart, adjustPosition(start));
+      const nextEnd = Math.max(nextStart, adjustPosition(end));
+      textarea.selectionStart = nextStart;
+      textarea.selectionEnd = nextEnd;
+    });
+  };
+
   return (
     <>
       <div className="left-side-panel">
-        <div className="code-actions-panel">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept=".hex"
-            style={{ display: 'none' }}
-          />
-          <button className="code-actions-button" style={{width: '200px'}} onClick={handleButtonClick}>
+        <div className="left-tab-row">
+          <button
+            className={`left-tab-button ${activeLeftTab === 'writeCode' ? 'active' : ''}`}
+            onClick={() => setActiveLeftTab('writeCode')}
+          >
+            Write Code
+          </button>
+          <button
+            className={`left-tab-button ${activeLeftTab === 'uploadHex' ? 'active' : ''}`}
+            onClick={() => setActiveLeftTab('uploadHex')}
+          >
             Upload Hex
           </button>
-          <button className="code-actions-button" style={{width: '200px'}} onClick={handleConvertToInstructions}>
-            Convert to Instructions
-          </button>
-          <button className="code-actions-button" onClick={handleStepClick}>
-            Step
-          </button>
-          <button className="code-actions-button">
-            Run
-          </button>
         </div>
-        <div className="code-panel">
-          {hexText && (
-            <div className="code-block">
-              <div className="code-heading">Hex File</div>
-              <pre className="code-pre">{hexText}</pre>
-            </div>
-          )}
-          {loading && <div className="code-status">Converting...</div>}
-          {error && <div className="code-status error">{error}</div>}
 
-          <div className="code-block">
-            {commands.map((command, index) => (
-              <div key={index} className="instruction-item">
-                <div className="instruction-name">
-                  {`Instruction Name: ${command.CommandName}`}
+        <div className="left-main-panel">
+          {activeLeftTab === 'writeCode' ? (
+            <>
+              <div className="code-actions-panel">
+                <button className="code-actions-button" style={{width: '200px'}}>
+                  Compile Code
+                </button>
+                <button className="code-actions-button" style={{width: '200px'}}>
+                  Run Code
+                </button>
+              </div>
+              <div className="code-editor-panel">
+                <textarea
+                  className="code-editor-textarea"
+                  placeholder="Write your code here..."
+                  value={codeInput}
+                  onChange={(event) => setCodeInput(event.target.value)}
+                  onKeyDown={handleCodeEditorKeyDown}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="code-actions-panel">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept=".hex"
+                  style={{ display: 'none' }}
+                />
+                <button className="code-actions-button" style={{width: '200px'}} onClick={handleButtonClick}>
+                  Upload Hex
+                </button>
+                <button className="code-actions-button" style={{width: '200px'}} onClick={handleConvertToInstructions}>
+                  Convert to Instructions
+                </button>
+                <button className="code-actions-button" onClick={handleStepClick}>
+                  Step
+                </button>
+                <button className="code-actions-button">
+                  Run
+                </button>
+              </div>
+              <div className="code-panel">
+                {hexText && (
+                  <div className="code-block">
+                    <div className="code-heading">Hex File</div>
+                    <pre className="code-pre">{hexText}</pre>
+                  </div>
+                )}
+                {loading && <div className="code-status">Converting...</div>}
+                {error && <div className="code-status error">{error}</div>}
+
+                <div className="code-block">
+                  {commands.map((command, index) => (
+                    <div key={index} className="instruction-item">
+                      <div className="instruction-name">
+                        {`Instruction Name: ${command.CommandName}`}
+                      </div>
+                      <div className="instruction-bytes">
+                        {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
+                      </div>
+                      <div className="instruction-bits">
+                        {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
+                      </div>
+                    </div>  
+                  ))}
                 </div>
-                <div className="instruction-bytes">
-                  {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
-                </div>
-                <div className="instruction-bits">
-                  {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
-                </div>
-              </div>  
-            ))}
-          </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
       <div className="right-side-panel">
