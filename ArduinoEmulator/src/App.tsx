@@ -7,6 +7,14 @@ function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigi
 
 let dataLines: string[] = [];
 
+type PlacedComponent = {
+  id: number;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+};
+
 function App() 
 {
   const registers = Array.from({ length: 32 }, (_, i) => i);
@@ -16,7 +24,8 @@ function App()
   const [activeLeftTab, setActiveLeftTab] = useState<'writeCode' | 'uploadHex'>('uploadHex');
   const [codeInput, setCodeInput] = useState<string>('int main() \n{  \n\n}');
   const [commands, setCommands] = useState<CommandInformation[]>([]);
-  const [placedLeds, setPlacedLeds] = useState<Array<{ id: number; x: number; y: number }>>([]);
+  const [placedComponents, setPlacedComponents] = useState<PlacedComponent[]>([]);
+  const [resizeTarget, setResizeTarget] = useState<{ id: number; width: number; height: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hexText, setHexText] = useState<string>("");
@@ -140,7 +149,7 @@ function App()
     if (componentType !== 'LED') return;
 
     const dropZoneRect = event.currentTarget.getBoundingClientRect();
-    const iconSize = 96;
+    const iconSize = 150;
 
     const rawX = event.clientX - dropZoneRect.left - iconSize / 2;
     const rawY = event.clientY - dropZoneRect.top - iconSize / 2;
@@ -148,22 +157,26 @@ function App()
     const x = Math.max(0, Math.min(rawX, dropZoneRect.width - iconSize));
     const y = Math.max(0, Math.min(rawY, dropZoneRect.height - iconSize));
 
-    setPlacedLeds((prev) => [...prev, { id: Date.now() + prev.length, x, y }]);
+    const defaultSize = 150;
+    setPlacedComponents((prev) => [
+      ...prev,
+      { id: Date.now() + prev.length, x, y, width: defaultSize, height: defaultSize },
+    ]);
   };
 
-  const handlePlacedLedMouseDown = (id: number, event: React.MouseEvent<HTMLImageElement>) => {
+  const handlePlacedComponentMouseDown = (id: number, event: React.MouseEvent<HTMLImageElement>) => {
     event.preventDefault();
 
     const dropZoneElement = dropZoneRef.current;
     if (!dropZoneElement) return;
 
-    const led = placedLeds.find((item) => item.id === id);
-    if (!led) return;
+    const component = placedComponents.find((item) => item.id === id);
+    if (!component) return;
 
     const dropZoneRect = dropZoneElement.getBoundingClientRect();
-    const iconSize = 96;
-    const pointerOffsetX = event.clientX - (dropZoneRect.left + led.x);
-    const pointerOffsetY = event.clientY - (dropZoneRect.top + led.y);
+    const iconSize = 150;
+    const pointerOffsetX = event.clientX - (dropZoneRect.left + component.x);
+    const pointerOffsetY = event.clientY - (dropZoneRect.top + component.y);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const latestDropZoneRect = dropZoneElement.getBoundingClientRect();
@@ -174,7 +187,7 @@ function App()
       const clampedX = Math.max(0, Math.min(nextX, latestDropZoneRect.width - iconSize));
       const clampedY = Math.max(0, Math.min(nextY, latestDropZoneRect.height - iconSize));
 
-      setPlacedLeds((prev) =>
+      setPlacedComponents((prev) =>
         prev.map((item) => (item.id === id ? { ...item, x: clampedX, y: clampedY } : item))
       );
     };
@@ -189,7 +202,7 @@ function App()
         upEvent.clientY <= latestDropZoneRect.bottom;
 
       if (!isInsideDropZone) {
-        setPlacedLeds((prev) => prev.filter((item) => item.id !== id));
+        setPlacedComponents((prev) => prev.filter((item) => item.id !== id));
       }
 
       window.removeEventListener('mousemove', handleMouseMove);
@@ -199,6 +212,115 @@ function App()
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   };
+
+  const handlePlacedComponentDoubleClick = (id: number, event: React.MouseEvent<HTMLImageElement>) => {
+    event.stopPropagation();
+    const comp = placedComponents.find((c) => c.id === id);
+    if (!comp) return;
+    setResizeTarget({ id: comp.id, width: comp.width ?? 150, height: comp.height ?? 150 });
+  };
+
+  const [selectedComponentId, setSelectedComponentId] = useState<number | null>(null);
+  const resizingRef = useRef<any>(null);
+
+  const startResize = (e: React.MouseEvent, handle: string, id: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const comp = placedComponents.find((c) => c.id === id);
+    const dropZone = dropZoneRef.current;
+    if (!comp || !dropZone) return;
+
+    const dropRect = dropZone.getBoundingClientRect();
+    resizingRef.current = {
+      id,
+      handle,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: comp.x,
+      startTop: comp.y,
+      startWidth: comp.width ?? 150,
+      startHeight: comp.height ?? 150,
+      dropRect,
+    };
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const r = resizingRef.current;
+      if (!r) return;
+      const dx = moveEvent.clientX - r.startX;
+      const dy = moveEvent.clientY - r.startY;
+      let newLeft = r.startLeft;
+      let newTop = r.startTop;
+      let newWidth = r.startWidth;
+      let newHeight = r.startHeight;
+
+      const minSize = 8;
+
+      switch (r.handle) {
+        case 'nw':
+          newLeft = Math.max(0, Math.min(r.startLeft + dx, r.startLeft + r.startWidth - minSize));
+          newTop = Math.max(0, Math.min(r.startTop + dy, r.startTop + r.startHeight - minSize));
+          newWidth = Math.max(minSize, r.startWidth - (newLeft - r.startLeft));
+          newHeight = Math.max(minSize, r.startHeight - (newTop - r.startTop));
+          break;
+        case 'n':
+          newTop = Math.max(0, Math.min(r.startTop + dy, r.startTop + r.startHeight - minSize));
+          newHeight = Math.max(minSize, r.startHeight - (newTop - r.startTop));
+          break;
+        case 'ne':
+          newTop = Math.max(0, Math.min(r.startTop + dy, r.startTop + r.startHeight - minSize));
+          newWidth = Math.max(minSize, r.startWidth + dx);
+          newHeight = Math.max(minSize, r.startHeight - (newTop - r.startTop));
+          break;
+        case 'e':
+          newWidth = Math.max(minSize, r.startWidth + dx);
+          break;
+        case 'se':
+          newWidth = Math.max(minSize, r.startWidth + dx);
+          newHeight = Math.max(minSize, r.startHeight + dy);
+          break;
+        case 's':
+          newHeight = Math.max(minSize, r.startHeight + dy);
+          break;
+        case 'sw':
+          newLeft = Math.max(0, Math.min(r.startLeft + dx, r.startLeft + r.startWidth - minSize));
+          newWidth = Math.max(minSize, r.startWidth - (newLeft - r.startLeft));
+          newHeight = Math.max(minSize, r.startHeight + dy);
+          break;
+        case 'w':
+          newLeft = Math.max(0, Math.min(r.startLeft + dx, r.startLeft + r.startWidth - minSize));
+          newWidth = Math.max(minSize, r.startWidth - (newLeft - r.startLeft));
+          break;
+      }
+
+      // clamp to drop zone bounds
+      newLeft = Math.max(0, Math.min(newLeft, r.dropRect.width - newWidth));
+      newTop = Math.max(0, Math.min(newTop, r.dropRect.height - newHeight));
+
+      setPlacedComponents((prev) => prev.map((p) => (p.id === r.id ? { ...p, x: Math.round(newLeft), y: Math.round(newTop), width: Math.round(newWidth), height: Math.round(newHeight) } : p)));
+    };
+
+    const onUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const clearSelection = () => {
+    setSelectedComponentId(null);
+    setResizeTarget(null);
+  };
+
+  const applyResize = () => {
+    if (!resizeTarget) return;
+    setPlacedComponents((prev) => prev.map((p) => (p.id === resizeTarget.id ? { ...p, width: resizeTarget.width, height: resizeTarget.height } : p)));
+    setResizeTarget(null);
+  };
+
+  const cancelResize = () => setResizeTarget(null);
 
   const handleCodeEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Tab') return;
@@ -280,13 +402,13 @@ function App()
       <div className="left-side-panel">
         <div className="left-tab-row">
           <button
-            className={`left-tab-button ${activeLeftTab === 'writeCode' ? 'active' : ''}`}
+            className={`left-tab-button ${activeLeftTab === 'writeCode'}`}
             onClick={() => setActiveLeftTab('writeCode')}
           >
             Write Code
           </button>
           <button
-            className={`left-tab-button ${activeLeftTab === 'uploadHex' ? 'active' : ''}`}
+            className={`left-tab-button ${activeLeftTab === 'uploadHex'}`}
             onClick={() => setActiveLeftTab('uploadHex')}
           >
             Upload Hex
@@ -337,99 +459,64 @@ function App()
                   Run
                 </button>
               </div>
-              <div className="code-panel">
-                {hexText && (
-                  <div className="code-block">
-                    <div className="code-heading">Hex File</div>
-                    <pre className="code-pre">{hexText}</pre>
-                  </div>
-                )}
-                {loading && <div className="code-status">Converting...</div>}
-                {error && <div className="code-status error">{error}</div>}
+              {(hexText || loading || error || commands.length > 0) && (
+                <div className="code-panel">
+                  {hexText && (
+                    <div className="code-block">
+                      <div className="code-heading">Hex File</div>
+                      <pre className="code-pre">{hexText}</pre>
+                    </div>
+                  )}
+                  {loading && <div className="code-status">Converting...</div>}
+                  {error && <div className="code-status error">{error}</div>}
 
-                <div className="code-block">
-                  {commands.map((command, index) => (
-                    <div key={index} className="instruction-item">
-                      <div className="instruction-name">
-                        {`Instruction Name: ${command.CommandName}`}
+                  <div className="code-block">
+                    {commands.map((command, index) => (
+                      <div key={index} className="instruction-item">
+                        <div className="instruction-name">
+                          {`Instruction Name: ${command.CommandName}`}
+                        </div>
+                        <div className="instruction-bytes">
+                          {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
+                        </div>
+                        <div className="instruction-bits">
+                          {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
+                        </div>
                       </div>
-                      <div className="instruction-bytes">
-                        {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
-                      </div>
-                      <div className="instruction-bits">
-                        {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
-                      </div>
-                    </div>  
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>
       </div>
       <div className="right-side-panel">
-        <div className="component-title-panel">
-          Components
-        </div>
-        <div className="board-visual-panel">
-          <div className="component-scroll-wrapper">
-            <div className="component-scroll-grid">
-              {componentSlots.map((slotNum) => (
-                <div key={slotNum} className="component-image-box">
-                  {slotNum === 1 ? (
-                    <img
-                      className="component-image-thumb"
-                      src="/LED.png"
-                      alt="LED"
-                      draggable
-                      onDragStart={handleLedDragStart}
-                    />
-                  ) : (
-                    <span className="component-image-label">{slotNum}</span>
-                  )}
+          <div className="instruction-display">
+            <div className="instruction-title">{commands[instructionPosition]?.CommandName ?? 'NONE'}</div>
+            <div className="instruction-bytes-small">{formatCommandBytes(commands[instructionPosition]?.CommandBytes ?? [])}</div>
+          </div>
+          <div className="data-panel">
+            <div className="info-section">
+              <div className="info-item">
+                <span className="info-label">Hex Instruction:</span>
+                <span className="info-value">
+                  {commands[instructionPosition]?.CommandName ?? 'NONE'}
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Program Counter:</span>
+                <span className="info-value">{machineData.PC}</span>
+              </div>
+            </div>
+            <div className="register-grid-panel">
+              {registers.map((registerNum) => (
+                <div key={registerNum} className={`register-box-panel ${changedRegisters.has(registerNum) ? 'register-changed' : ''}`}>
+                  R{registerNum}: 0x{(machineData.DataSpace[registerNum] || 0).toString(16).padStart(2, '0').toUpperCase()}
                 </div>
               ))}
             </div>
           </div>
-          <div
-            className="component-drop-zone"
-            ref={dropZoneRef}
-            onDragOver={handleDropZoneDragOver}
-            onDrop={handleDropInZone}
-          >
-            {placedLeds.map((led) => (
-              <img
-                key={led.id}
-                className="placed-component-thumb"
-                src="/LED.png"
-                alt="Placed LED"
-                style={{ left: `${led.x}px`, top: `${led.y}px` }}
-                onMouseDown={(event) => handlePlacedLedMouseDown(led.id, event)}
-              />
-            ))}
-          </div>
-        </div>
-        <div className="data-panel">
-          <div className="info-section">
-            <div className="info-item">
-              <span className="info-label">Hex Instruction:</span>
-              <span className="info-value">
-                {commands[instructionPosition]?.CommandName ?? 'NONE'}
-              </span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Program Counter:</span>
-              <span className="info-value">{machineData.PC}</span>
-            </div>
-          </div>
-          <div className="register-grid-panel">
-            {registers.map((registerNum) => (
-              <div key={registerNum} className={`register-box-panel ${changedRegisters.has(registerNum) ? 'register-changed' : ''}`}>
-                R{registerNum}: 0x{(machineData.DataSpace[registerNum] || 0).toString(16).padStart(2, '0').toUpperCase()}
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </>
   )
