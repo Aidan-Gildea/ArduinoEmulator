@@ -29,4 +29,11 @@ public class VisualizerController : ControllerBase
 
         return parse.ParseCommand(state);
     }
-}
+
+    [HttpPost("CompileCode")]
+    public string CompileCode([FromBody] string sourceCode)
+    {
+        throw new ArgumentException("ENDPOINT HAS NOT BEEN FULLY IMPLEMENTED");
+        return "";
+    }
+} 
