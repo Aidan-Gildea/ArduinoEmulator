@@ -66,3 +66,19 @@ export const runInstruction = async (state: MachineData): Promise<MachineDataDif
     return raw;
 };
 
+export const compileCode = async (sourceCode: string): Promise<string> => {
+    const response = await fetch(`${API_BASE_URL}/Visualizer/CompileCode`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sourceCode),
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! ${response.statusText}`);
+    }
+    
+    return response.text();
+};
+

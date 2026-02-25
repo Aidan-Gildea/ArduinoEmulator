@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import './App.css'
-import { findAllInstructions, runInstruction } from './api'
+import { findAllInstructions, runInstruction, compileCode } from './api'
 import type { CommandInformation, MachineData, MachineDataDiff } from './api'
 
 function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigits, 16); }
@@ -22,7 +22,7 @@ function App()
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [activeLeftTab, setActiveLeftTab] = useState<'writeCode' | 'uploadHex'>('uploadHex');
-  const [codeInput, setCodeInput] = useState<string>('int main() \n{  \n\n}');
+  const [codeInput, setCodeInput] = useState<string>('#include <Arduino.h>\n\nvoid setup() \n{  \n\n}\n\nvoid loop()\n{\n\n}  ');
   const [commands, setCommands] = useState<CommandInformation[]>([]);
   const [placedComponents, setPlacedComponents] = useState<PlacedComponent[]>([]);
   const [resizeTarget, setResizeTarget] = useState<{ id: number; width: number; height: number } | null>(null);
@@ -127,6 +127,20 @@ function App()
       setMachineData((prev) => ({ ...prev, CommandToParse: result[0] }));
     } catch (e: any) {
       setError(e?.message ?? 'Failed to convert to instructions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompileCode = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await compileCode(codeInput);
+      console.log('Compilation result:', result);
+      // TODO: Handle the compilation result (e.g., display hex output)
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to compile code');
     } finally {
       setLoading(false);
     }
@@ -419,7 +433,7 @@ function App()
           {activeLeftTab === 'writeCode' ? (
             <>
               <div className="code-actions-panel">
-                <button className="code-actions-button" style={{width: '200px'}}>
+                <button className="code-actions-button" style={{width: '200px'}} onClick={handleCompileCode}>
                   Compile Code
                 </button>
                 <button className="code-actions-button" style={{width: '200px'}}>

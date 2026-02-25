@@ -68,7 +68,7 @@ class Program
 
         File.WriteAllText(
             generatedFilePath,
-            @"#include <avr/io.h>
+            @"#include <Arduino.h>
 
 int main(void)
 {

@@ -33,6 +33,8 @@ public class VisualizerController : ControllerBase
     [HttpPost("CompileCode")]
     public string CompileCode([FromBody] string sourceCode)
     {
+        string APICheck = "Hello from API!";
+        return APICheck;
         throw new ArgumentException("ENDPOINT HAS NOT BEEN FULLY IMPLEMENTED");
         return "";
     }
