@@ -7,25 +7,39 @@ function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigi
 
 let dataLines: string[] = [];
 
-type PlacedComponent = {
-  id: number;
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-};
+function ParseHexDataLines(hexContent: string): string[] {
+  const lines = hexContent.split(/\r?\n/);
+  const parsedDataLines: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || !line.startsWith(':')) continue;
+
+    const dataCountHex = line.slice(1, 3);
+    const recordTypeHex = line.slice(7, 9);
+
+    const dataCount = ConvertHexToNumber(dataCountHex);
+    const recordType = ConvertHexToNumber(recordTypeHex);
+
+    if (Number.isNaN(dataCount) || Number.isNaN(recordType)) continue;
+    if (recordType !== 0 || dataCount <= 0) continue;
+
+    const data = line.slice(9, 9 + (2 * dataCount));
+    if (data.length === 2 * dataCount) {
+      parsedDataLines.push(data);
+    }
+  }
+
+  return parsedDataLines;
+}
 
 function App() 
 {
   const registers = Array.from({ length: 32 }, (_, i) => i);
-  const componentSlots = Array.from({ length: 72 }, (_, i) => i + 1);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropZoneRef = useRef<HTMLDivElement>(null);
   const [activeLeftTab, setActiveLeftTab] = useState<'writeCode' | 'uploadHex'>('uploadHex');
   const [codeInput, setCodeInput] = useState<string>('#include <Arduino.h>\n\nvoid setup() \n{  \n\n}\n\nvoid loop()\n{\n\n}  ');
   const [commands, setCommands] = useState<CommandInformation[]>([]);
-  const [placedComponents, setPlacedComponents] = useState<PlacedComponent[]>([]);
-  const [resizeTarget, setResizeTarget] = useState<{ id: number; width: number; height: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hexText, setHexText] = useState<string>("");
@@ -66,13 +80,10 @@ function App()
         SP: 2000,
         StatusRegister: { sregByte: 0 },
       });
-      let lines: string[]  = content.split('\n');
+      dataLines = ParseHexDataLines(content);
 
-      for(let i = 0; i < lines.length; i++) {
-
-        let dataCountHex: string = lines[i].slice(1, 3);
-        let dataCount: number = ConvertHexToNumber(dataCountHex);
-        dataLines[i] = lines[i].slice(9, 9 + 2 * dataCount);
+      if (dataLines.length === 0) {
+        setError('No instruction data records found in HEX file.');
       }
     };
     reader.readAsText(file);
@@ -121,6 +132,11 @@ function App()
     try {
       setLoading(true);
       setError(null);
+
+      if (dataLines.length === 0) {
+        throw new Error('No HEX instruction data available. Upload or compile code first.');
+      }
+
       const result = await findAllInstructions(dataLines);
       setCommands(result);
       setInstructionPosition(0);
@@ -137,204 +153,37 @@ function App()
       setLoading(true);
       setError(null);
       const result = await compileCode(codeInput);
-      console.log('Compilation result:', result);
-      // TODO: Handle the compilation result (e.g., display hex output)
+      setHexText(result);
+      setInstructionPosition(0);
+      setChangedRegisters(new Set());
+      setMachineData({
+        CommandToParse: { CommandName: 'NONE', CommandBytes: [] },
+        PC: 0,
+        DataSpace: new Array(2000).fill(0),
+        SP: 2000,
+        StatusRegister: { sregByte: 0 },
+      });
+
+      dataLines = ParseHexDataLines(result);
+      if (dataLines.length === 0) {
+        throw new Error('Compilation succeeded but no HEX instruction data records were found.');
+      }
+
+      const instructions = await findAllInstructions(dataLines);
+      setCommands(instructions);
+      setInstructionPosition(0);
+      setMachineData((prev) => ({
+        ...prev,
+        CommandToParse: instructions[0] ?? { CommandName: 'NONE', CommandBytes: [] }
+      }));
+
+      setActiveLeftTab('uploadHex');
     } catch (e: any) {
       setError(e?.message ?? 'Failed to compile code');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleLedDragStart = (event: React.DragEvent<HTMLImageElement>) => {
-    event.dataTransfer.setData('componentType', 'LED');
-    event.dataTransfer.effectAllowed = 'copy';
-  };
-
-  const handleDropZoneDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleDropInZone = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-
-    const componentType = event.dataTransfer.getData('componentType');
-    if (componentType !== 'LED') return;
-
-    const dropZoneRect = event.currentTarget.getBoundingClientRect();
-    const iconSize = 150;
-
-    const rawX = event.clientX - dropZoneRect.left - iconSize / 2;
-    const rawY = event.clientY - dropZoneRect.top - iconSize / 2;
-
-    const x = Math.max(0, Math.min(rawX, dropZoneRect.width - iconSize));
-    const y = Math.max(0, Math.min(rawY, dropZoneRect.height - iconSize));
-
-    const defaultSize = 150;
-    setPlacedComponents((prev) => [
-      ...prev,
-      { id: Date.now() + prev.length, x, y, width: defaultSize, height: defaultSize },
-    ]);
-  };
-
-  const handlePlacedComponentMouseDown = (id: number, event: React.MouseEvent<HTMLImageElement>) => {
-    event.preventDefault();
-
-    const dropZoneElement = dropZoneRef.current;
-    if (!dropZoneElement) return;
-
-    const component = placedComponents.find((item) => item.id === id);
-    if (!component) return;
-
-    const dropZoneRect = dropZoneElement.getBoundingClientRect();
-    const iconSize = 150;
-    const pointerOffsetX = event.clientX - (dropZoneRect.left + component.x);
-    const pointerOffsetY = event.clientY - (dropZoneRect.top + component.y);
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const latestDropZoneRect = dropZoneElement.getBoundingClientRect();
-
-      const nextX = moveEvent.clientX - latestDropZoneRect.left - pointerOffsetX;
-      const nextY = moveEvent.clientY - latestDropZoneRect.top - pointerOffsetY;
-
-      const clampedX = Math.max(0, Math.min(nextX, latestDropZoneRect.width - iconSize));
-      const clampedY = Math.max(0, Math.min(nextY, latestDropZoneRect.height - iconSize));
-
-      setPlacedComponents((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, x: clampedX, y: clampedY } : item))
-      );
-    };
-
-    const handleMouseUp = (upEvent: MouseEvent) => {
-      const latestDropZoneRect = dropZoneElement.getBoundingClientRect();
-
-      const isInsideDropZone =
-        upEvent.clientX >= latestDropZoneRect.left &&
-        upEvent.clientX <= latestDropZoneRect.right &&
-        upEvent.clientY >= latestDropZoneRect.top &&
-        upEvent.clientY <= latestDropZoneRect.bottom;
-
-      if (!isInsideDropZone) {
-        setPlacedComponents((prev) => prev.filter((item) => item.id !== id));
-      }
-
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const handlePlacedComponentDoubleClick = (id: number, event: React.MouseEvent<HTMLImageElement>) => {
-    event.stopPropagation();
-    const comp = placedComponents.find((c) => c.id === id);
-    if (!comp) return;
-    setResizeTarget({ id: comp.id, width: comp.width ?? 150, height: comp.height ?? 150 });
-  };
-
-  const [selectedComponentId, setSelectedComponentId] = useState<number | null>(null);
-  const resizingRef = useRef<any>(null);
-
-  const startResize = (e: React.MouseEvent, handle: string, id: number) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const comp = placedComponents.find((c) => c.id === id);
-    const dropZone = dropZoneRef.current;
-    if (!comp || !dropZone) return;
-
-    const dropRect = dropZone.getBoundingClientRect();
-    resizingRef.current = {
-      id,
-      handle,
-      startX: e.clientX,
-      startY: e.clientY,
-      startLeft: comp.x,
-      startTop: comp.y,
-      startWidth: comp.width ?? 150,
-      startHeight: comp.height ?? 150,
-      dropRect,
-    };
-
-    const onMove = (moveEvent: MouseEvent) => {
-      const r = resizingRef.current;
-      if (!r) return;
-      const dx = moveEvent.clientX - r.startX;
-      const dy = moveEvent.clientY - r.startY;
-      let newLeft = r.startLeft;
-      let newTop = r.startTop;
-      let newWidth = r.startWidth;
-      let newHeight = r.startHeight;
-
-      const minSize = 8;
-
-      switch (r.handle) {
-        case 'nw':
-          newLeft = Math.max(0, Math.min(r.startLeft + dx, r.startLeft + r.startWidth - minSize));
-          newTop = Math.max(0, Math.min(r.startTop + dy, r.startTop + r.startHeight - minSize));
-          newWidth = Math.max(minSize, r.startWidth - (newLeft - r.startLeft));
-          newHeight = Math.max(minSize, r.startHeight - (newTop - r.startTop));
-          break;
-        case 'n':
-          newTop = Math.max(0, Math.min(r.startTop + dy, r.startTop + r.startHeight - minSize));
-          newHeight = Math.max(minSize, r.startHeight - (newTop - r.startTop));
-          break;
-        case 'ne':
-          newTop = Math.max(0, Math.min(r.startTop + dy, r.startTop + r.startHeight - minSize));
-          newWidth = Math.max(minSize, r.startWidth + dx);
-          newHeight = Math.max(minSize, r.startHeight - (newTop - r.startTop));
-          break;
-        case 'e':
-          newWidth = Math.max(minSize, r.startWidth + dx);
-          break;
-        case 'se':
-          newWidth = Math.max(minSize, r.startWidth + dx);
-          newHeight = Math.max(minSize, r.startHeight + dy);
-          break;
-        case 's':
-          newHeight = Math.max(minSize, r.startHeight + dy);
-          break;
-        case 'sw':
-          newLeft = Math.max(0, Math.min(r.startLeft + dx, r.startLeft + r.startWidth - minSize));
-          newWidth = Math.max(minSize, r.startWidth - (newLeft - r.startLeft));
-          newHeight = Math.max(minSize, r.startHeight + dy);
-          break;
-        case 'w':
-          newLeft = Math.max(0, Math.min(r.startLeft + dx, r.startLeft + r.startWidth - minSize));
-          newWidth = Math.max(minSize, r.startWidth - (newLeft - r.startLeft));
-          break;
-      }
-
-      // clamp to drop zone bounds
-      newLeft = Math.max(0, Math.min(newLeft, r.dropRect.width - newWidth));
-      newTop = Math.max(0, Math.min(newTop, r.dropRect.height - newHeight));
-
-      setPlacedComponents((prev) => prev.map((p) => (p.id === r.id ? { ...p, x: Math.round(newLeft), y: Math.round(newTop), width: Math.round(newWidth), height: Math.round(newHeight) } : p)));
-    };
-
-    const onUp = () => {
-      resizingRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
-
-  const clearSelection = () => {
-    setSelectedComponentId(null);
-    setResizeTarget(null);
-  };
-
-  const applyResize = () => {
-    if (!resizeTarget) return;
-    setPlacedComponents((prev) => prev.map((p) => (p.id === resizeTarget.id ? { ...p, width: resizeTarget.width, height: resizeTarget.height } : p)));
-    setResizeTarget(null);
-  };
-
-  const cancelResize = () => setResizeTarget(null);
 
   const handleCodeEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Tab') return;
