@@ -24,13 +24,18 @@ public class CompileCode
 
         var arduinoCliPath = ResolveArduinoCliPath();
 
-        var compileExitCode = RunCommand(
+        var compileResult = RunCommand(
             arduinoCliPath,
             $"compile --fqbn arduino:avr:uno --output-dir \"{outputDirectory}\" \"{sketchDirectory}\"");
 
-        if (compileExitCode != 0)
+        if (compileResult.ExitCode != 0)
         {
-            throw new InvalidOperationException("Arduino compilation failed. See server logs for arduino-cli output.");
+            var details = !string.IsNullOrWhiteSpace(compileResult.StandardError)
+                ? compileResult.StandardError
+                : compileResult.StandardOutput;
+
+            throw new InvalidOperationException(
+                $"Arduino compilation failed.\n{details}".Trim());
         }
 
         var hexFilePath = Directory
@@ -77,7 +82,7 @@ public class CompileCode
             $"Current PATH: '{pathEnvironment}'.");
     }
 
-    private static int RunCommand(string fileName, string arguments)
+    private static CommandResult RunCommand(string fileName, string arguments)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -121,7 +126,9 @@ public class CompileCode
                 Console.WriteLine($"{fileName} stderr:\n{stderr}");
             }
 
-            return process.ExitCode;
+            return new CommandResult(process.ExitCode, stdout, stderr);
         }
     }
+
+    private sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
 }

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import Editor, { type Monaco, type OnMount } from '@monaco-editor/react'
 import './App.css'
 import { findAllInstructions, runInstruction, compileCode } from './api'
 import type { CommandInformation, MachineData, MachineDataDiff } from './api'
@@ -33,17 +34,35 @@ function ParseHexDataLines(hexContent: string): string[] {
   return parsedDataLines;
 }
 
+const arduinoCompletionLabels = [
+  'pinMode',
+  'digitalWrite',
+  'digitalRead',
+  'analogRead',
+  'analogWrite',
+  'delay',
+  'millis',
+  'Serial.begin',
+  'Serial.print',
+  'Serial.println',
+  'setup',
+  'loop'
+];
+
 function App() 
 {
   const registers = Array.from({ length: 32 }, (_, i) => i);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeLeftTab, setActiveLeftTab] = useState<'writeCode' | 'uploadHex'>('uploadHex');
+  const [activeCodePanelTab, setActiveCodePanelTab] = useState<'hex' | 'instructions' | 'unknown' | 'errors'>('hex');
   const [codeInput, setCodeInput] = useState<string>('#include <Arduino.h>\n\nvoid setup() \n{  \n\n}\n\nvoid loop()\n{\n\n}  ');
+  const [isMonacoConfigured, setIsMonacoConfigured] = useState(false);
   const [commands, setCommands] = useState<CommandInformation[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [hexText, setHexText] = useState<string>("");
   const [instructionPosition, setInstructionPosition] = useState(0);
+  const completionProviderRef = useRef<{ dispose: () => void } | null>(null);
   const [machineData, setMachineData] = useState<MachineData>(
   {
     CommandToParse: commands[instructionPosition],
@@ -60,6 +79,8 @@ function App()
 
   const formatCommandBits = (bytes: number[]) =>
     bytes.map((b) => b.toString(2).padStart(8, '0')).join(' ');
+
+  const unknownInstructions = commands.filter((command) => command.CommandName === 'NO COMMAND FOUND');
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
   const file = event.target.files?.[0];
@@ -83,7 +104,11 @@ function App()
       dataLines = ParseHexDataLines(content);
 
       if (dataLines.length === 0) {
-        setError('No instruction data records found in HEX file.');
+        setErrorMessages(['No instruction data records found in HEX file.']);
+        setActiveCodePanelTab('errors');
+      } else {
+        setErrorMessages([]);
+        setActiveCodePanelTab('hex');
       }
     };
     reader.readAsText(file);
@@ -131,7 +156,7 @@ function App()
   const handleConvertToInstructions = async () => {
     try {
       setLoading(true);
-      setError(null);
+      setErrorMessages([]);
 
       if (dataLines.length === 0) {
         throw new Error('No HEX instruction data available. Upload or compile code first.');
@@ -141,8 +166,10 @@ function App()
       setCommands(result);
       setInstructionPosition(0);
       setMachineData((prev) => ({ ...prev, CommandToParse: result[0] }));
+      setActiveCodePanelTab('instructions');
     } catch (e: any) {
-      setError(e?.message ?? 'Failed to convert to instructions');
+      setErrorMessages([e?.message ?? 'Failed to convert to instructions']);
+      setActiveCodePanelTab('errors');
     } finally {
       setLoading(false);
     }
@@ -151,9 +178,16 @@ function App()
   const handleCompileCode = async () => {
     try {
       setLoading(true);
-      setError(null);
+      setErrorMessages([]);
       const result = await compileCode(codeInput);
-      setHexText(result);
+
+      if (result.errors.length > 0 || !result.hexText) {
+        setErrorMessages(result.errors.length > 0 ? result.errors : ['Failed to compile code']);
+        setActiveCodePanelTab('errors');
+        return;
+      }
+
+      setHexText(result.hexText);
       setInstructionPosition(0);
       setChangedRegisters(new Set());
       setMachineData({
@@ -164,9 +198,11 @@ function App()
         StatusRegister: { sregByte: 0 },
       });
 
-      dataLines = ParseHexDataLines(result);
+      dataLines = ParseHexDataLines(result.hexText);
       if (dataLines.length === 0) {
-        throw new Error('Compilation succeeded but no HEX instruction data records were found.');
+        setErrorMessages(['Compilation succeeded but no HEX instruction data records were found.']);
+        setActiveCodePanelTab('errors');
+        return;
       }
 
       const instructions = await findAllInstructions(dataLines);
@@ -178,86 +214,69 @@ function App()
       }));
 
       setActiveLeftTab('uploadHex');
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to compile code');
-    } finally {
+      setActiveCodePanelTab('instructions');
+    } 
+
+    catch (e: any) {
+      setErrorMessages([e?.message ?? 'Failed to compile code']);
+      setActiveCodePanelTab('errors');
+    } 
+    finally {
       setLoading(false);
     }
   };
 
-  const handleCodeEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Tab') return;
+  const handleCodeEditorMount: OnMount = (editor, monaco) => {
+    editor.focus();
 
-    event.preventDefault();
-
-    const indent = '  ';
-
-    const textarea = event.currentTarget;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-
-    if (!event.shiftKey) {
-      const updated = `${codeInput.slice(0, start)}${indent}${codeInput.slice(end)}`;
-      setCodeInput(updated);
-      requestAnimationFrame(() => {
-        const nextCursor = start + indent.length;
-        textarea.selectionStart = nextCursor;
-        textarea.selectionEnd = nextCursor;
-      });
+    if (isMonacoConfigured) {
       return;
     }
 
-    const lineStart = codeInput.lastIndexOf('\n', start - 1) + 1;
-    const lineEndIndex = codeInput.indexOf('\n', end);
-    const lineEnd = lineEndIndex === -1 ? codeInput.length : lineEndIndex;
+    completionProviderRef.current?.dispose();
+    completionProviderRef.current = monaco.languages.registerCompletionItemProvider('cpp', {
+      triggerCharacters: ['.', '>'],
+      provideCompletionItems: (model: Monaco['editor']['ITextModel'], position: Monaco['Position']) => {
+        const word = model.getWordUntilPosition(position);
+        const range = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        };
 
-    const block = codeInput.slice(lineStart, lineEnd);
-    const lines = block.split('\n');
-    let offset = 0;
-    const lineAdjustments: { start: number; removed: number }[] = [];
+        const keywordSuggestions = arduinoCompletionLabels.map((label) => ({
+          label,
+          kind: monaco.languages.CompletionItemKind.Function,
+          insertText: label.includes('.') ? `${label}($1);` : `${label}($1);`,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          range,
+        }));
 
-    const outdented = lines
-      .map((line) => {
-        const currentLineStart = lineStart + offset;
-        let removed = 0;
-        let updatedLine = line;
-
-        if (line.startsWith(indent)) {
-          removed = indent.length;
-          updatedLine = line.slice(indent.length);
-        } else if (line.startsWith('\t')) {
-          removed = 1;
-          updatedLine = line.slice(1);
-        }
-
-        lineAdjustments.push({ start: currentLineStart, removed });
-        offset += line.length + 1;
-
-        return updatedLine;
-      })
-      .join('\n');
-
-    const adjustPosition = (position: number) => {
-      const deduction = lineAdjustments.reduce((total, lineInfo) => {
-        if (position <= lineInfo.start || lineInfo.removed === 0) {
-          return total;
-        }
-
-        const charsIntoLine = position - lineInfo.start;
-        return total + Math.min(lineInfo.removed, charsIntoLine);
-      }, 0);
-
-      return position - deduction;
-    };
-
-    const updated = `${codeInput.slice(0, lineStart)}${outdented}${codeInput.slice(lineEnd)}`;
-    setCodeInput(updated);
-    requestAnimationFrame(() => {
-      const nextStart = Math.max(lineStart, adjustPosition(start));
-      const nextEnd = Math.max(nextStart, adjustPosition(end));
-      textarea.selectionStart = nextStart;
-      textarea.selectionEnd = nextEnd;
+        return {
+          suggestions: [
+            {
+              label: 'setup/loop template',
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText: 'void setup()\n{\n  $1\n}\n\nvoid loop()\n{\n  $2\n}',
+              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              documentation: 'Arduino sketch template.',
+              range,
+            },
+            {
+              label: '#include <Arduino.h>',
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText: '#include <Arduino.h>',
+              documentation: 'Arduino core include.',
+              range,
+            },
+            ...keywordSuggestions,
+          ],
+        };
+      },
     });
+
+    setIsMonacoConfigured(true);
   };
 
   return (
@@ -290,13 +309,40 @@ function App()
                 </button>
               </div>
               <div className="code-editor-panel">
-                <textarea
-                  className="code-editor-textarea"
-                  placeholder="Write your code here..."
-                  value={codeInput}
-                  onChange={(event) => setCodeInput(event.target.value)}
-                  onKeyDown={handleCodeEditorKeyDown}
-                />
+                <div className="code-editor-monaco">
+                  <Editor
+                    language="cpp"
+                    theme="vs-dark"
+                    value={codeInput}
+                    onMount={handleCodeEditorMount}
+                    onChange={(value) => setCodeInput(value ?? '')}
+                    options={{
+                      automaticLayout: true,
+                      minimap: { enabled: false },
+                      fontSize: 15,
+                      tabSize: 2,
+                      insertSpaces: true,
+                      wordWrap: 'on',
+                      suggestOnTriggerCharacters: true,
+                      quickSuggestions: {
+                        other: true,
+                        comments: false,
+                        strings: false,
+                      },
+                      scrollBeyondLastLine: false,
+                    }}
+                  />
+                </div>
+                {errorMessages.length > 0 && (
+                  <div className="code-editor-error-overlay" role="log" aria-live="polite">
+                    <div className="code-editor-error-title">Errors</div>
+                    <ul className="code-editor-error-list">
+                      {errorMessages.map((message, index) => (
+                        <li key={index} className="code-editor-error-item">{message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </>
           ) : (
@@ -322,32 +368,103 @@ function App()
                   Run
                 </button>
               </div>
-              {(hexText || loading || error || commands.length > 0) && (
+              {(hexText || loading || errorMessages.length > 0 || commands.length > 0) && (
                 <div className="code-panel">
-                  {hexText && (
+                  <div className="code-panel-tab-row">
+                    <button
+                      className={`code-panel-tab-button ${activeCodePanelTab === 'hex' ? 'active' : ''}`}
+                      onClick={() => setActiveCodePanelTab('hex')}
+                    >
+                      Hex File
+                    </button>
+                    <button
+                      className={`code-panel-tab-button ${activeCodePanelTab === 'instructions' ? 'active' : ''}`}
+                      onClick={() => setActiveCodePanelTab('instructions')}
+                    >
+                      Instructions
+                    </button>
+                    <button
+                      className={`code-panel-tab-button ${activeCodePanelTab === 'unknown' ? 'active' : ''}`}
+                      onClick={() => setActiveCodePanelTab('unknown')}
+                    >
+                      Unknown ({unknownInstructions.length})
+                    </button>
+                    <button
+                      className={`code-panel-tab-button ${activeCodePanelTab === 'errors' ? 'active' : ''}`}
+                      onClick={() => setActiveCodePanelTab('errors')}
+                    >
+                      Errors ({errorMessages.length})
+                    </button>
+                  </div>
+
+                  {loading && <div className="code-status">Converting...</div>}
+
+                  {activeCodePanelTab === 'hex' && (
                     <div className="code-block">
                       <div className="code-heading">Hex File</div>
-                      <pre className="code-pre">{hexText}</pre>
+                      <pre className="code-pre">{hexText || 'No compiled or uploaded HEX yet.'}</pre>
                     </div>
                   )}
-                  {loading && <div className="code-status">Converting...</div>}
-                  {error && <div className="code-status error">{error}</div>}
 
-                  <div className="code-block">
-                    {commands.map((command, index) => (
-                      <div key={index} className="instruction-item">
-                        <div className="instruction-name">
-                          {`Instruction Name: ${command.CommandName}`}
-                        </div>
-                        <div className="instruction-bytes">
-                          {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
-                        </div>
-                        <div className="instruction-bits">
-                          {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  {activeCodePanelTab === 'instructions' && (
+                    <div className="code-block">
+                      {commands.length === 0 ? (
+                        <div className="code-status">No instructions loaded yet.</div>
+                      ) : (
+                        commands.map((command, index) => (
+                          <div key={index} className="instruction-item">
+                            <div className="instruction-name">
+                              {`Instruction Name: ${command.CommandName}`}
+                            </div>
+                            <div className="instruction-bytes">
+                              {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
+                            </div>
+                            <div className="instruction-bits">
+                              {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {activeCodePanelTab === 'unknown' && (
+                    <div className="code-block">
+                      <div className="code-heading">Unknown Instructions</div>
+                      {unknownInstructions.length === 0 ? (
+                        <div className="code-status">No unknown instructions found.</div>
+                      ) : (
+                        unknownInstructions.map((command, index) => (
+                          <div key={index} className="instruction-item">
+                            <div className="instruction-name">
+                              {`Instruction Name: ${command.CommandName}`}
+                            </div>
+                            <div className="instruction-bytes">
+                              {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
+                            </div>
+                            <div className="instruction-bits">
+                              {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {activeCodePanelTab === 'errors' && (
+                    <div className="code-block">
+                      <div className="code-heading">Errors</div>
+                      {errorMessages.length === 0 ? (
+                        <div className="code-status">No errors.</div>
+                      ) : (
+                        <ul className="error-list">
+                          {errorMessages.map((message, index) => (
+                            <li key={index} className="error-list-item">{message}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -355,6 +472,13 @@ function App()
         </div>
       </div>
       <div className="right-side-panel">
+          <div className="run-image-box">
+            <img
+              className="run-image"
+              src="/ArduinoEmulatorIconTrans.png"
+              alt="Instruction run visual"
+            />
+          </div>
           <div className="instruction-display">
             <div className="instruction-title">{commands[instructionPosition]?.CommandName ?? 'NONE'}</div>
             <div className="instruction-bytes-small">{formatCommandBytes(commands[instructionPosition]?.CommandBytes ?? [])}</div>

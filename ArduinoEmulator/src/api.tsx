@@ -28,6 +28,11 @@ export interface CommandInformation {
     CommandBytes: number[];
 }
 
+export interface CompileCodeResponse {
+    hexText: string | null;
+    errors: string[];
+}
+
 
 const API_BASE_URL = 'http://localhost:5024';
 
@@ -66,7 +71,7 @@ export const runInstruction = async (state: MachineData): Promise<MachineDataDif
     return raw;
 };
 
-export const compileCode = async (sourceCode: string): Promise<string> => {
+export const compileCode = async (sourceCode: string): Promise<CompileCodeResponse> => {
     const response = await fetch(`${API_BASE_URL}/Visualizer/CompileCode`, {
         method: 'POST',
         headers: {
@@ -76,9 +81,16 @@ export const compileCode = async (sourceCode: string): Promise<string> => {
     });
 
     if (!response.ok) {
-        throw new Error(`HTTP error! ${response.statusText}`);
+        return {
+            hexText: null,
+            errors: [`HTTP error! ${response.statusText}`],
+        };
     }
-    
-    return response.text();
+
+    const raw = await response.json();
+    return {
+        hexText: raw?.hexText ?? null,
+        errors: Array.isArray(raw?.errors) ? raw.errors : [],
+    };
 };
 

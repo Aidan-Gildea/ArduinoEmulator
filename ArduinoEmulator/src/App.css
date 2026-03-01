@@ -24,6 +24,24 @@
   flex-direction: column;
 }
 
+.run-image-box {
+  margin: var(--panel-margin) var(--panel-margin) 0px var(--panel-margin);
+  border: 3px solid white;
+  width: calc(100% - (2 * var(--panel-margin)));
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.03);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.run-image {
+  width: 100%;
+  max-height: 335px;
+  object-fit: contain;
+}
+
 .component-title-panel {
   position: relative;
   border: 3px solid white;
@@ -327,6 +345,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
   min-height: 0;
 }
 
@@ -345,6 +364,55 @@
   font-family: "DM Mono", "JetBrains Mono", monospace;
   font-size: 15px;
   outline: none;
+}
+
+.code-editor-monaco {
+  flex: 1;
+  min-height: 0;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.25);
+}
+
+.code-editor-error-overlay {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  max-height: 42%;
+  overflow: auto;
+  border: 2px solid rgba(255,255,255,0.22);
+  border-radius: 8px;
+  background: rgba(8, 8, 8, 0.92);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  text-align: left;
+  z-index: 20;
+}
+
+.code-editor-error-title {
+  position: sticky;
+  top: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+  background: rgba(20, 20, 20, 0.95);
+  color: #f2f2f2;
+  font-family: "DM Mono", "JetBrains Mono", monospace;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.code-editor-error-list {
+  margin: 0;
+  padding: 10px 14px 12px 28px;
+}
+
+.code-editor-error-item {
+  color: #ff9d9d;
+  font-family: "DM Mono", "JetBrains Mono", monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 5px;
 }
 
 .code-actions-panel {
@@ -366,6 +434,27 @@
   border: 3px dashed white;
   overflow: auto;
   min-height: 0;
+}
+
+.code-panel-tab-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 0px 12px;
+}
+
+.code-panel-tab-button {
+  border: 2px solid rgba(255,255,255,0.8);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.code-panel-tab-button.active {
+  border-color: #66b3ff;
+  background: rgba(102,179,255,0.25);
 }
 
 .code-block {
@@ -410,6 +499,18 @@
 
 .code-status.error {
   color: #ffb3b3;
+}
+
+.error-list {
+  margin: 0;
+  padding-left: 20px;
+  text-align: left;
+}
+
+.error-list-item {
+  color: #ffb3b3;
+  line-height: 1.5;
+  margin-bottom: 6px;
 }
 
 .instruction-list {

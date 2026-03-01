@@ -12,6 +12,8 @@ namespace API.Controllers;
 [Route("[controller]")]
 public class VisualizerController : ControllerBase
 {
+    public sealed record CompileCodeResponse(string? HexText, List<string> Errors);
+
     [HttpPost("FindAllInstructions")]
     public IActionResult FindAllInstructions([FromBody] string[] dataLines)
     {
@@ -31,9 +33,27 @@ public class VisualizerController : ControllerBase
     }
 
     [HttpPost("CompileCode")]
-    public string CompileCode([FromBody] string sourceCode)
+    public ActionResult<CompileCodeResponse> CompileCode([FromBody] string sourceCode)
     {
-        CompileCode compile = new CompileCode();
-        return compile.ReturnHexFile(sourceCode);
+        try
+        {
+            CompileCode compile = new CompileCode();
+            var hexText = compile.ReturnHexFile(sourceCode);
+            return Ok(new CompileCodeResponse(hexText, []));
+        }
+        catch (Exception ex)
+        {
+            var errorMessages = ex.Message
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(message => !string.IsNullOrWhiteSpace(message))
+                .ToList();
+
+            if (errorMessages.Count == 0)
+            {
+                errorMessages.Add("Arduino compilation failed.");
+            }
+
+            return Ok(new CompileCodeResponse(null, errorMessages));
+        }
     }
 } 

@@ -11,22 +11,29 @@ namespace Generated
         { 
             {"ADD", (commandBytes) => new ADD(commandBytes) },
             {"ADC", (commandBytes) => new ADC(commandBytes) },
+            {"SBC", (commandBytes) => new SBC(commandBytes) },
             {"ADIW", (commandBytes) => new ADIW(commandBytes) },
+            {"AND", (commandBytes) => new AND(commandBytes) },
             {"BRBC", (commandBytes) => new BRBC(commandBytes) },
             {"BRBS", (commandBytes) => new BRBS(commandBytes) },
             {"CALL", (commandBytes) => new CALL(commandBytes) },
             {"CLI", (commandBytes) => new CLI(commandBytes) },
+            {"COM", (commandBytes) => new COM(commandBytes) },
             {"CPC", (commandBytes) => new CPC(commandBytes) },
+            {"CPSE", (commandBytes) => new CPSE(commandBytes) },
             {"CPI", (commandBytes) => new CPI(commandBytes) },
             {"DEC", (commandBytes) => new DEC(commandBytes) },
             {"EOR", (commandBytes) => new EOR(commandBytes) },
+            {"OR", (commandBytes) => new OR(commandBytes) },
             {"IN", (commandBytes) => new IN(commandBytes) },
             {"JMP", (commandBytes) => new JMP(commandBytes) },
             {"LDI", (commandBytes) => new LDI(commandBytes) },
+            {"LPM", (commandBytes) => new LPM(commandBytes) },
             {"LDX", (commandBytes) => new LDX(commandBytes) },
             {"LDY", (commandBytes) => new LDY(commandBytes) },
             {"LDZ", (commandBytes) => new LDZ(commandBytes) },
             {"ORI", (commandBytes) => new ORI(commandBytes) },
+            {"ANDI", (commandBytes) => new ANDI(commandBytes) },
             {"OUT", (commandBytes) => new OUT(commandBytes) },
             {"PUSH", (commandBytes) => new PUSH(commandBytes) },
             {"RET", (commandBytes) => new RET(commandBytes) },
@@ -37,7 +44,8 @@ namespace Generated
             {"STX", (commandBytes) => new STX(commandBytes) },
             {"STY", (commandBytes) => new STY(commandBytes) },
             {"STZ", (commandBytes) => new STZ(commandBytes) },
-            {"SUBI", (commandBytes) => new SUBI(commandBytes) }
+            {"SUBI", (commandBytes) => new SUBI(commandBytes) },
+            {"SBCI", (commandBytes) => new SBCI(commandBytes) }
         };
     }
 }
