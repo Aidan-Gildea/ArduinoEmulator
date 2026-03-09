@@ -26,10 +26,14 @@ export interface MachineDataDiff {
 export interface CommandInformation {
     CommandName: string;
     CommandBytes: number[];
+    ProgramAddressByte?: number | null;
+    SourceLineNumber?: number | null;
 }
 
 export interface CompileCodeResponse {
     hexText: string | null;
+    elfBase64: string | null;
+    instructions: CommandInformation[];
     errors: string[];
 }
 
@@ -83,13 +87,27 @@ export const compileCode = async (sourceCode: string): Promise<CompileCodeRespon
     if (!response.ok) {
         return {
             hexText: null,
+            elfBase64: null,
+            instructions: [],
             errors: [`HTTP error! ${response.statusText}`],
         };
     }
 
     const raw = await response.json();
+
+    const instructions: CommandInformation[] = Array.isArray(raw?.instructions)
+        ? raw.instructions.map((instruction: any) => ({
+            CommandName: instruction?.CommandName ?? instruction?.commandName ?? 'NO COMMAND FOUND',
+            CommandBytes: instruction?.CommandBytes ?? instruction?.commandBytes ?? [],
+            ProgramAddressByte: instruction?.ProgramAddressByte ?? instruction?.programAddressByte ?? null,
+            SourceLineNumber: instruction?.SourceLineNumber ?? instruction?.sourceLineNumber ?? null,
+        }))
+        : [];
+
     return {
         hexText: raw?.hexText ?? null,
+        elfBase64: raw?.elfBase64 ?? null,
+        instructions,
         errors: Array.isArray(raw?.errors) ? raw.errors : [],
     };
 };

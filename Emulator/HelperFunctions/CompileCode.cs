@@ -4,7 +4,9 @@ namespace Emulator;
 
 public class CompileCode
 {
-    public string ReturnHexFile(string sourceCode)
+    public sealed record CompileArtifacts(string HexText, byte[] ElfBytes, string ElfFilePath, string SketchFilePath);
+
+    public CompileArtifacts CompileSketch(string sourceCode)
     {
         if (string.IsNullOrWhiteSpace(sourceCode))
         {
@@ -48,7 +50,25 @@ public class CompileCode
             throw new FileNotFoundException("No .hex file was produced by arduino-cli.");
         }
 
-        return File.ReadAllText(hexFilePath);
+        var elfFilePath = Directory
+            .EnumerateFiles(outputDirectory, "*.elf", SearchOption.AllDirectories)
+            .FirstOrDefault();
+
+        if (elfFilePath is null)
+        {
+            throw new FileNotFoundException("No .elf file was produced by arduino-cli.");
+        }
+
+        return new CompileArtifacts(
+            File.ReadAllText(hexFilePath),
+            File.ReadAllBytes(elfFilePath),
+            elfFilePath,
+            inoPath);
+    }
+
+    public string ReturnHexFile(string sourceCode)
+    {
+        return CompileSketch(sourceCode).HexText;
     }
 
     private static string ResolveArduinoCliPath()

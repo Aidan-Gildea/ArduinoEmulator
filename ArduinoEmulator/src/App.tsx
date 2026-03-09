@@ -8,6 +8,17 @@ function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigi
 
 let dataLines: string[] = [];
 
+const pastelPalette = [
+  '#ffdfe5',
+  '#ffeecf',
+  '#e4f6d9',
+  '#d9f3f4',
+  '#dde8ff',
+  '#eadfff',
+  '#ffdff4',
+  '#f6e7d9',
+];
+
 function ParseHexDataLines(hexContent: string): string[] {
   const lines = hexContent.split(/\r?\n/);
   const parsedDataLines: string[] = [];
@@ -34,6 +45,36 @@ function ParseHexDataLines(hexContent: string): string[] {
   return parsedDataLines;
 }
 
+function ConvertElfBase64ToHexDump(elfBase64: string): string {
+  try {
+    const decoded = atob(elfBase64);
+    const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
+
+    const maxPreviewBytes = 8192;
+    const preview = bytes.slice(0, maxPreviewBytes);
+    const lines: string[] = [];
+
+    for (let index = 0; index < preview.length; index += 16) {
+      const chunk = preview.slice(index, index + 16);
+      const hex = Array.from(chunk)
+        .map((value) => value.toString(16).padStart(2, '0').toUpperCase())
+        .join(' ');
+      const offset = index.toString(16).padStart(8, '0').toUpperCase();
+      lines.push(`${offset}: ${hex}`);
+    }
+
+    if (bytes.length > maxPreviewBytes) {
+      lines.push('');
+      lines.push(`... truncated preview (${maxPreviewBytes} of ${bytes.length} bytes shown)`);
+    }
+
+    return lines.join('\n');
+  }
+  catch {
+    return 'Unable to decode ELF payload.';
+  }
+}
+
 const arduinoCompletionLabels = [
   'pinMode',
   'digitalWrite',
@@ -54,15 +95,21 @@ function App()
   const registers = Array.from({ length: 32 }, (_, i) => i);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeLeftTab, setActiveLeftTab] = useState<'writeCode' | 'uploadHex'>('uploadHex');
-  const [activeCodePanelTab, setActiveCodePanelTab] = useState<'hex' | 'instructions' | 'unknown' | 'errors'>('hex');
+  const [activeCodePanelTab, setActiveCodePanelTab] = useState<'hex' | 'elf' | 'instructions' | 'mapped' | 'unknown' | 'errors'>('hex');
   const [codeInput, setCodeInput] = useState<string>('#include <Arduino.h>\n\nvoid setup() \n{  \n\n}\n\nvoid loop()\n{\n\n}  ');
   const [isMonacoConfigured, setIsMonacoConfigured] = useState(false);
   const [commands, setCommands] = useState<CommandInformation[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [hexText, setHexText] = useState<string>("");
+  const [elfText, setElfText] = useState<string>("");
   const [instructionPosition, setInstructionPosition] = useState(0);
   const completionProviderRef = useRef<{ dispose: () => void } | null>(null);
+  const monacoEditorRef = useRef<any>(null);
+  const monacoRef = useRef<Monaco | null>(null);
+  const highlightedDecorationIdsRef = useRef<string[]>([]);
+  const [hoveredMappedInstructionIndex, setHoveredMappedInstructionIndex] = useState<number | null>(null);
+  const [selectedMappedLineNumber, setSelectedMappedLineNumber] = useState<number | null>(null);
   const [machineData, setMachineData] = useState<MachineData>(
   {
     CommandToParse: commands[instructionPosition],
@@ -81,6 +128,74 @@ function App()
     bytes.map((b) => b.toString(2).padStart(8, '0')).join(' ');
 
   const unknownInstructions = commands.filter((command) => command.CommandName === 'NO COMMAND FOUND');
+  const mappedInstructions = commands.filter((command) => command.SourceLineNumber != null);
+  const mappedInstructionRows = commands
+    .map((command, index) => ({ command, index }))
+    .filter((entry) => entry.command.SourceLineNumber != null);
+
+  const mappedInstructionRegions = (() => {
+    const groups = new Map<number, { lineNumber: number; entries: typeof mappedInstructionRows; colorIndex: number }>();
+
+    for (const entry of mappedInstructionRows) {
+      const lineNumber = entry.command.SourceLineNumber as number;
+      const existing = groups.get(lineNumber);
+      if (existing) {
+        existing.entries.push(entry);
+      } else {
+        groups.set(lineNumber, {
+          lineNumber,
+          entries: [entry],
+          colorIndex: lineNumber % pastelPalette.length,
+        });
+      }
+    }
+
+    return Array.from(groups.values()).sort((a, b) => a.lineNumber - b.lineNumber);
+  })();
+
+  const clearHighlightedSourceLine = () => {
+    if (!monacoEditorRef.current) {
+      return;
+    }
+
+    highlightedDecorationIdsRef.current = monacoEditorRef.current.deltaDecorations(
+      highlightedDecorationIdsRef.current,
+      []);
+  };
+
+  const restoreSelectedHighlight = () => {
+    const selectedRegion = mappedInstructionRegions.find((region) => region.lineNumber === selectedMappedLineNumber);
+    if (!selectedRegion) {
+      clearHighlightedSourceLine();
+      return;
+    }
+
+    highlightSourceLine(selectedRegion.lineNumber, selectedRegion.colorIndex);
+  };
+
+  const highlightSourceLine = (lineNumber: number, colorIndex: number) => {
+    if (!monacoEditorRef.current || !monacoRef.current || lineNumber <= 0) {
+      return;
+    }
+
+    const model = monacoEditorRef.current.getModel();
+    if (!model || lineNumber > model.getLineCount()) {
+      return;
+    }
+
+    highlightedDecorationIdsRef.current = monacoEditorRef.current.deltaDecorations(
+      highlightedDecorationIdsRef.current,
+      [{
+        range: new monacoRef.current.Range(lineNumber, 1, lineNumber, 1),
+        options: {
+          isWholeLine: true,
+          className: `source-line-highlight-${colorIndex}`,
+          linesDecorationsClassName: `source-line-highlight-gutter-${colorIndex}`,
+        },
+      }]);
+
+    monacoEditorRef.current.revealLineInCenter(lineNumber);
+  };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
   const file = event.target.files?.[0];
@@ -91,7 +206,10 @@ function App()
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setHexText(content);
+      setElfText("");
       setCommands([]);
+      setSelectedMappedLineNumber(null);
+      clearHighlightedSourceLine();
       setInstructionPosition(0);
       setChangedRegisters(new Set());
       setMachineData({
@@ -182,12 +300,16 @@ function App()
       const result = await compileCode(codeInput);
 
       if (result.errors.length > 0 || !result.hexText) {
+        setElfText("");
         setErrorMessages(result.errors.length > 0 ? result.errors : ['Failed to compile code']);
         setActiveCodePanelTab('errors');
         return;
       }
 
       setHexText(result.hexText);
+      setElfText(result.elfBase64 ? ConvertElfBase64ToHexDump(result.elfBase64) : 'No compiled ELF payload returned.');
+      setSelectedMappedLineNumber(null);
+      clearHighlightedSourceLine();
       setInstructionPosition(0);
       setChangedRegisters(new Set());
       setMachineData({
@@ -205,7 +327,10 @@ function App()
         return;
       }
 
-      const instructions = await findAllInstructions(dataLines);
+      const instructions = result.instructions.length > 0
+        ? result.instructions
+        : await findAllInstructions(dataLines);
+
       setCommands(instructions);
       setInstructionPosition(0);
       setMachineData((prev) => ({
@@ -214,7 +339,7 @@ function App()
       }));
 
       setActiveLeftTab('uploadHex');
-      setActiveCodePanelTab('instructions');
+      setActiveCodePanelTab('elf');
     } 
 
     catch (e: any) {
@@ -227,6 +352,8 @@ function App()
   };
 
   const handleCodeEditorMount: OnMount = (editor, monaco) => {
+    monacoEditorRef.current = editor;
+    monacoRef.current = monaco;
     editor.focus();
 
     if (isMonacoConfigured) {
@@ -293,7 +420,7 @@ function App()
             className={`left-tab-button ${activeLeftTab === 'uploadHex'}`}
             onClick={() => setActiveLeftTab('uploadHex')}
           >
-            Upload Hex
+            Hex File Data
           </button>
         </div>
 
@@ -309,40 +436,87 @@ function App()
                 </button>
               </div>
               <div className="code-editor-panel">
-                <div className="code-editor-monaco">
-                  <Editor
-                    language="cpp"
-                    theme="vs-dark"
-                    value={codeInput}
-                    onMount={handleCodeEditorMount}
-                    onChange={(value) => setCodeInput(value ?? '')}
-                    options={{
-                      automaticLayout: true,
-                      minimap: { enabled: false },
-                      fontSize: 15,
-                      tabSize: 2,
-                      insertSpaces: true,
-                      wordWrap: 'on',
-                      suggestOnTriggerCharacters: true,
-                      quickSuggestions: {
-                        other: true,
-                        comments: false,
-                        strings: false,
-                      },
-                      scrollBeyondLastLine: false,
-                    }}
-                  />
-                </div>
-                {errorMessages.length > 0 && (
-                  <div className="code-editor-error-overlay" role="log" aria-live="polite">
-                    <div className="code-editor-error-title">Errors</div>
-                    <ul className="code-editor-error-list">
-                      {errorMessages.map((message, index) => (
-                        <li key={index} className="code-editor-error-item">{message}</li>
-                      ))}
-                    </ul>
+                <div className="code-editor-workspace">
+                  <div className="code-editor-monaco-pane">
+                    <div className="code-editor-monaco">
+                      <Editor
+                        language="cpp"
+                        theme="vs-dark"
+                        value={codeInput}
+                        onMount={handleCodeEditorMount}
+                        onChange={(value) => setCodeInput(value ?? '')}
+                        options={{
+                          automaticLayout: true,
+                          minimap: { enabled: false },
+                          fontSize: 15,
+                          tabSize: 2,
+                          insertSpaces: true,
+                          wordWrap: 'on',
+                          suggestOnTriggerCharacters: true,
+                          quickSuggestions: {
+                            other: true,
+                            comments: false,
+                            strings: false,
+                          },
+                          scrollBeyondLastLine: false,
+                        }}
+                      />
+                    </div>
+                    {errorMessages.length > 0 && (
+                      <div className="code-editor-error-overlay" role="log" aria-live="polite">
+                        <div className="code-editor-error-title">Errors</div>
+                        <ul className="code-editor-error-list">
+                          {errorMessages.map((message, index) => (
+                            <li key={index} className="code-editor-error-item">{message}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {(commands.length > 0 || loading) && (
+                    <div className="code-editor-mapped-panel">
+                      <div className="code-editor-mapped-title">Mapped Instructions</div>
+                      {mappedInstructionRegions.length === 0 ? (
+                        <div className="code-editor-mapped-empty">No source-line mappings available for this build.</div>
+                      ) : (
+                        <div className="code-editor-mapped-list">
+                          {mappedInstructionRegions.map((region, regionIndex) => (
+                            <div
+                              key={`${region.lineNumber}-${regionIndex}`}
+                              className={`code-editor-mapped-region ${selectedMappedLineNumber === region.lineNumber ? 'selected' : ''}`}
+                              style={{
+                                backgroundColor: pastelPalette[region.colorIndex],
+                                borderColor: pastelPalette[region.colorIndex],
+                              }}
+                              onMouseEnter={() => {
+                                setHoveredMappedInstructionIndex(region.entries[0]?.index ?? null);
+                                highlightSourceLine(region.lineNumber, region.colorIndex);
+                              }}
+                              onMouseLeave={() => {
+                                setHoveredMappedInstructionIndex(null);
+                                restoreSelectedHighlight();
+                              }}
+                              onClick={() => {
+                                setSelectedMappedLineNumber(region.lineNumber);
+                                highlightSourceLine(region.lineNumber, region.colorIndex);
+                              }}
+                            >
+                              {region.entries.map((entry) => (
+                                <div
+                                  key={`${entry.index}-${entry.command.CommandName}`}
+                                  className={`code-editor-mapped-item ${hoveredMappedInstructionIndex === entry.index ? 'active' : ''}`}
+                                >
+                                  <span className="code-editor-mapped-name">{entry.command.CommandName}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           ) : (
@@ -368,7 +542,7 @@ function App()
                   Run
                 </button>
               </div>
-              {(hexText || loading || errorMessages.length > 0 || commands.length > 0) && (
+              {(hexText || elfText || loading || errorMessages.length > 0 || commands.length > 0) && (
                 <div className="code-panel">
                   <div className="code-panel-tab-row">
                     <button
@@ -378,10 +552,22 @@ function App()
                       Hex File
                     </button>
                     <button
+                      className={`code-panel-tab-button ${activeCodePanelTab === 'elf' ? 'active' : ''}`}
+                      onClick={() => setActiveCodePanelTab('elf')}
+                    >
+                      ELF File
+                    </button>
+                    <button
                       className={`code-panel-tab-button ${activeCodePanelTab === 'instructions' ? 'active' : ''}`}
                       onClick={() => setActiveCodePanelTab('instructions')}
                     >
                       Instructions
+                    </button>
+                    <button
+                      className={`code-panel-tab-button ${activeCodePanelTab === 'mapped' ? 'active' : ''}`}
+                      onClick={() => setActiveCodePanelTab('mapped')}
+                    >
+                      With Source Line ({mappedInstructions.length})
                     </button>
                     <button
                       className={`code-panel-tab-button ${activeCodePanelTab === 'unknown' ? 'active' : ''}`}
@@ -406,6 +592,13 @@ function App()
                     </div>
                   )}
 
+                  {activeCodePanelTab === 'elf' && (
+                    <div className="code-block">
+                      <div className="code-heading">ELF File</div>
+                      <pre className="code-pre">{elfText || 'No compiled ELF yet. Compile code to view ELF data.'}</pre>
+                    </div>
+                  )}
+
                   {activeCodePanelTab === 'instructions' && (
                     <div className="code-block">
                       {commands.length === 0 ? (
@@ -416,12 +609,41 @@ function App()
                             <div className="instruction-name">
                               {`Instruction Name: ${command.CommandName}`}
                             </div>
+                            <div className="instruction-meta">
+                              {`Source Line: ${command.SourceLineNumber ?? 'Unavailable'}`}
+                            </div>
                             <div className="instruction-bytes">
                               {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
                             </div>
                             <div className="instruction-bits">
                               {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
                             </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {activeCodePanelTab === 'mapped' && (
+                    <div className="code-block">
+                      <div className="code-heading">Instructions With Source Line</div>
+                      {mappedInstructionRegions.length === 0 ? (
+                        <div className="code-status">No instructions with source line mapping are available.</div>
+                      ) : (
+                        mappedInstructionRegions.map((region, regionIndex) => (
+                          <div
+                            key={`${region.lineNumber}-${regionIndex}`}
+                            className="mapped-region-panel"
+                            style={{
+                              backgroundColor: pastelPalette[region.colorIndex],
+                              borderColor: pastelPalette[region.colorIndex],
+                            }}
+                          >
+                            {region.entries.map((entry) => (
+                              <div key={`${entry.index}-${entry.command.CommandName}`} className="mapped-region-instruction-name">
+                                {entry.command.CommandName}
+                              </div>
+                            ))}
                           </div>
                         ))
                       )}
@@ -438,6 +660,9 @@ function App()
                           <div key={index} className="instruction-item">
                             <div className="instruction-name">
                               {`Instruction Name: ${command.CommandName}`}
+                            </div>
+                            <div className="instruction-meta">
+                              {`Source Line: ${command.SourceLineNumber ?? 'Unavailable'}`}
                             </div>
                             <div className="instruction-bytes">
                               {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}

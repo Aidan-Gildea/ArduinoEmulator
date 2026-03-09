@@ -87,6 +87,7 @@ public class FindInstruction
     {
         List<CommandInformation> commands = new List<CommandInformation>();
         bool shouldTakeFromNextSpan = false;
+        int currentProgramAddressByte = 0;
     
         for(int lineNum = 0; lineNum < hexLines.Length; lineNum++)
         {
@@ -133,7 +134,10 @@ public class FindInstruction
                 {
                     CommandName = command.Identifier,
                     CommandBytes = command.CommandBytes,
+                    ProgramAddressByte = currentProgramAddressByte,
                 });   
+
+                currentProgramAddressByte += command.CommandBytes.Count;
             }
         }
         
