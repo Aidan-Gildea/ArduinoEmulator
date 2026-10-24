@@ -3,6 +3,7 @@ import Editor, { type Monaco, type OnMount } from '@monaco-editor/react'
 import './App.css'
 import { findAllInstructions, runInstruction, compileCode } from './api'
 import type { CommandInformation, MachineData, MachineDataDiff } from './api'
+import { LoginPage } from './LoginPage'
 
 function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigits, 16); }
 
@@ -120,6 +121,8 @@ function App()
   });
 
   const [changedRegisters, setChangedRegisters] = useState<Set<number>>(new Set());
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const formatCommandBytes = (bytes: number[]) =>
     bytes.map((b) => `0x${b.toString(16).padStart(2, '0').toUpperCase()}`).join(' ');
@@ -197,42 +200,56 @@ function App()
     monacoEditorRef.current.revealLineInCenter(lineNumber);
   };
 
+  const processHexFileContent = (content: string) => {
+    setHexText(content);
+    setElfText("");
+    setCommands([]);
+    setSelectedMappedLineNumber(null);
+    clearHighlightedSourceLine();
+    setInstructionPosition(0);
+    setChangedRegisters(new Set());
+    setMachineData({
+      CommandToParse: { CommandName: 'NONE', CommandBytes: [] },
+      PC: 0,
+      DataSpace: new Array(2000).fill(0),
+      SP: 2000,
+      StatusRegister: { sregByte: 0 },
+    });
+    dataLines = ParseHexDataLines(content);
+    if (dataLines.length === 0) {
+      setErrorMessages(['No instruction data records found in HEX file.']);
+      setActiveCodePanelTab('errors');
+    } else {
+      setErrorMessages([]);
+      setActiveCodePanelTab('hex');
+    }
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-  const file = event.target.files?.[0];
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => processHexFileContent(e.target?.result as string);
+      reader.readAsText(file);
+    }
+    event.target.value = "";
+  };
 
-  if (file) 
-  {
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = () => setIsDraggingOver(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.name.endsWith('.hex')) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setHexText(content);
-      setElfText("");
-      setCommands([]);
-      setSelectedMappedLineNumber(null);
-      clearHighlightedSourceLine();
-      setInstructionPosition(0);
-      setChangedRegisters(new Set());
-      setMachineData({
-        CommandToParse: { CommandName: 'NONE', CommandBytes: [] },
-        PC: 0,
-        DataSpace: new Array(2000).fill(0),
-        SP: 2000,
-        StatusRegister: { sregByte: 0 },
-      });
-      dataLines = ParseHexDataLines(content);
-
-      if (dataLines.length === 0) {
-        setErrorMessages(['No instruction data records found in HEX file.']);
-        setActiveCodePanelTab('errors');
-      } else {
-        setErrorMessages([]);
-        setActiveCodePanelTab('hex');
-      }
-    };
+    reader.onload = (ev) => processHexFileContent(ev.target?.result as string);
     reader.readAsText(file);
-  }
-  
-  event.target.value = "";
   };
 
   const handleButtonClick = () => {
@@ -406,18 +423,29 @@ function App()
     setIsMonacoConfigured(true);
   };
 
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={() => setIsAuthenticated(true)} />
+  }
+
   return (
-    <>
+    <div className="app-main">
+      <header className="app-header">
+        <img className="app-header-logo" src="/ArduinoEmulatorIconTrans.png" alt="" />
+        <span className="app-header-title">
+          <span className="app-header-brand">Arduino</span> Emulator
+        </span>
+        <span className="app-header-subtitle">AVR Instruction Debugger</span>
+      </header>
       <div className="left-side-panel">
         <div className="left-tab-row">
           <button
-            className={`left-tab-button ${activeLeftTab === 'writeCode'}`}
+            className={`left-tab-button ${activeLeftTab === 'writeCode' ? 'active' : ''}`}
             onClick={() => setActiveLeftTab('writeCode')}
           >
             Write Code
           </button>
           <button
-            className={`left-tab-button ${activeLeftTab === 'uploadHex'}`}
+            className={`left-tab-button ${activeLeftTab === 'uploadHex' ? 'active' : ''}`}
             onClick={() => setActiveLeftTab('uploadHex')}
           >
             Hex File Data
@@ -428,10 +456,10 @@ function App()
           {activeLeftTab === 'writeCode' ? (
             <>
               <div className="code-actions-panel">
-                <button className="code-actions-button" style={{width: '200px'}} onClick={handleCompileCode}>
+                <button className="code-actions-button" onClick={handleCompileCode}>
                   Compile Code
                 </button>
-                <button className="code-actions-button" style={{width: '200px'}}>
+                <button className="code-actions-button">
                   Run Code
                 </button>
               </div>
@@ -529,169 +557,206 @@ function App()
                   accept=".hex"
                   style={{ display: 'none' }}
                 />
-                <button className="code-actions-button" style={{width: '200px'}} onClick={handleButtonClick}>
+                <button className="code-actions-button" onClick={handleButtonClick}>
                   Upload Hex
                 </button>
-                <button className="code-actions-button" style={{width: '200px'}} onClick={handleConvertToInstructions}>
+                <button className="code-actions-button" onClick={handleConvertToInstructions} disabled={!hexText}>
                   Convert to Instructions
                 </button>
-                <button className="code-actions-button" onClick={handleStepClick}>
+                <button className="code-actions-button" onClick={handleStepClick} disabled={commands.length === 0}>
                   Step
                 </button>
-                <button className="code-actions-button">
+                <button className="code-actions-button" disabled={commands.length === 0}>
                   Run
                 </button>
               </div>
-              {(hexText || elfText || loading || errorMessages.length > 0 || commands.length > 0) && (
-                <div className="code-panel">
-                  <div className="code-panel-tab-row">
-                    <button
-                      className={`code-panel-tab-button ${activeCodePanelTab === 'hex' ? 'active' : ''}`}
-                      onClick={() => setActiveCodePanelTab('hex')}
-                    >
-                      Hex File
-                    </button>
-                    <button
-                      className={`code-panel-tab-button ${activeCodePanelTab === 'elf' ? 'active' : ''}`}
-                      onClick={() => setActiveCodePanelTab('elf')}
-                    >
-                      ELF File
-                    </button>
-                    <button
-                      className={`code-panel-tab-button ${activeCodePanelTab === 'instructions' ? 'active' : ''}`}
-                      onClick={() => setActiveCodePanelTab('instructions')}
-                    >
-                      Instructions
-                    </button>
-                    <button
-                      className={`code-panel-tab-button ${activeCodePanelTab === 'mapped' ? 'active' : ''}`}
-                      onClick={() => setActiveCodePanelTab('mapped')}
-                    >
-                      With Source Line ({mappedInstructions.length})
-                    </button>
-                    <button
-                      className={`code-panel-tab-button ${activeCodePanelTab === 'unknown' ? 'active' : ''}`}
-                      onClick={() => setActiveCodePanelTab('unknown')}
-                    >
-                      Unknown ({unknownInstructions.length})
-                    </button>
-                    <button
-                      className={`code-panel-tab-button ${activeCodePanelTab === 'errors' ? 'active' : ''}`}
-                      onClick={() => setActiveCodePanelTab('errors')}
-                    >
-                      Errors ({errorMessages.length})
-                    </button>
-                  </div>
+              <div className="code-panel">
+                {(hexText || elfText || loading || errorMessages.length > 0 || commands.length > 0) ? (
+                  <>
+                    <div className="code-panel-tab-row">
+                      <button
+                        className={`code-panel-tab-button ${activeCodePanelTab === 'hex' ? 'active' : ''}`}
+                        onClick={() => setActiveCodePanelTab('hex')}
+                      >
+                        Hex File
+                      </button>
+                      <button
+                        className={`code-panel-tab-button ${activeCodePanelTab === 'elf' ? 'active' : ''}`}
+                        onClick={() => setActiveCodePanelTab('elf')}
+                      >
+                        ELF File
+                      </button>
+                      <button
+                        className={`code-panel-tab-button ${activeCodePanelTab === 'instructions' ? 'active' : ''}`}
+                        onClick={() => setActiveCodePanelTab('instructions')}
+                      >
+                        Instructions
+                      </button>
+                      <button
+                        className={`code-panel-tab-button ${activeCodePanelTab === 'mapped' ? 'active' : ''}`}
+                        onClick={() => setActiveCodePanelTab('mapped')}
+                      >
+                        With Source Line ({mappedInstructions.length})
+                      </button>
+                      <button
+                        className={`code-panel-tab-button ${activeCodePanelTab === 'unknown' ? 'active' : ''}`}
+                        onClick={() => setActiveCodePanelTab('unknown')}
+                      >
+                        Unknown ({unknownInstructions.length})
+                      </button>
+                      <button
+                        className={`code-panel-tab-button ${activeCodePanelTab === 'errors' ? 'active' : ''}`}
+                        onClick={() => setActiveCodePanelTab('errors')}
+                      >
+                        Errors ({errorMessages.length})
+                      </button>
+                    </div>
 
-                  {loading && <div className="code-status">Converting...</div>}
-
-                  {activeCodePanelTab === 'hex' && (
-                    <div className="code-block">
-                      <div className="code-heading">Hex File</div>
-                      <pre className="code-pre">{hexText || 'No compiled or uploaded HEX yet.'}</pre>
+                    {loading && (
+                    <div className="code-loading">
+                      <span className="code-loading-spinner" />
+                      converting instructions...
                     </div>
                   )}
 
-                  {activeCodePanelTab === 'elf' && (
-                    <div className="code-block">
-                      <div className="code-heading">ELF File</div>
-                      <pre className="code-pre">{elfText || 'No compiled ELF yet. Compile code to view ELF data.'}</pre>
-                    </div>
-                  )}
+                    {activeCodePanelTab === 'hex' && (
+                      <div className="code-block">
+                        <div className="code-heading">Hex File</div>
+                        <pre className="code-pre">{hexText || 'No compiled or uploaded HEX yet.'}</pre>
+                      </div>
+                    )}
 
-                  {activeCodePanelTab === 'instructions' && (
-                    <div className="code-block">
-                      {commands.length === 0 ? (
-                        <div className="code-status">No instructions loaded yet.</div>
-                      ) : (
-                        commands.map((command, index) => (
-                          <div key={index} className="instruction-item">
-                            <div className="instruction-name">
-                              {`Instruction Name: ${command.CommandName}`}
-                            </div>
-                            <div className="instruction-meta">
-                              {`Source Line: ${command.SourceLineNumber ?? 'Unavailable'}`}
-                            </div>
-                            <div className="instruction-bytes">
-                              {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
-                            </div>
-                            <div className="instruction-bits">
-                              {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
+                    {activeCodePanelTab === 'elf' && (
+                      <div className="code-block">
+                        <div className="code-heading">ELF File</div>
+                        <pre className="code-pre">{elfText || 'No compiled ELF yet. Compile code to view ELF data.'}</pre>
+                      </div>
+                    )}
 
-                  {activeCodePanelTab === 'mapped' && (
-                    <div className="code-block">
-                      <div className="code-heading">Instructions With Source Line</div>
-                      {mappedInstructionRegions.length === 0 ? (
-                        <div className="code-status">No instructions with source line mapping are available.</div>
-                      ) : (
-                        mappedInstructionRegions.map((region, regionIndex) => (
-                          <div
-                            key={`${region.lineNumber}-${regionIndex}`}
-                            className="mapped-region-panel"
-                            style={{
-                              backgroundColor: pastelPalette[region.colorIndex],
-                              borderColor: pastelPalette[region.colorIndex],
-                            }}
-                          >
-                            {region.entries.map((entry) => (
-                              <div key={`${entry.index}-${entry.command.CommandName}`} className="mapped-region-instruction-name">
-                                {entry.command.CommandName}
+                    {activeCodePanelTab === 'instructions' && (
+                      <div className="code-block">
+                        {commands.length === 0 ? (
+                          <div className="code-status">No instructions loaded yet.</div>
+                        ) : (
+                          commands.map((command, index) => (
+                            <div key={index} className="instruction-item">
+                              <div className="instruction-name">
+                                {`Instruction Name: ${command.CommandName}`}
                               </div>
+                              <div className="instruction-meta">
+                                {`Source Line: ${command.SourceLineNumber ?? 'Unavailable'}`}
+                              </div>
+                              <div className="instruction-bytes">
+                                {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
+                              </div>
+                              <div className="instruction-bits">
+                                {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {activeCodePanelTab === 'mapped' && (
+                      <div className="code-block">
+                        <div className="code-heading">Instructions With Source Line</div>
+                        {mappedInstructionRegions.length === 0 ? (
+                          <div className="code-status">No instructions with source line mapping are available.</div>
+                        ) : (
+                          mappedInstructionRegions.map((region, regionIndex) => (
+                            <div
+                              key={`${region.lineNumber}-${regionIndex}`}
+                              className="mapped-region-panel"
+                              style={{
+                                backgroundColor: pastelPalette[region.colorIndex],
+                                borderColor: pastelPalette[region.colorIndex],
+                              }}
+                            >
+                              {region.entries.map((entry) => (
+                                <div key={`${entry.index}-${entry.command.CommandName}`} className="mapped-region-instruction-name">
+                                  {entry.command.CommandName}
+                                </div>
+                              ))}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {activeCodePanelTab === 'unknown' && (
+                      <div className="code-block">
+                        <div className="code-heading">Unknown Instructions</div>
+                        {unknownInstructions.length === 0 ? (
+                          <div className="code-status">No unknown instructions found.</div>
+                        ) : (
+                          unknownInstructions.map((command, index) => (
+                            <div key={index} className="instruction-item">
+                              <div className="instruction-name">
+                                {`Instruction Name: ${command.CommandName}`}
+                              </div>
+                              <div className="instruction-meta">
+                                {`Source Line: ${command.SourceLineNumber ?? 'Unavailable'}`}
+                              </div>
+                              <div className="instruction-bytes">
+                                {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
+                              </div>
+                              <div className="instruction-bits">
+                                {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {activeCodePanelTab === 'errors' && (
+                      <div className="code-block">
+                        <div className="code-heading">Errors</div>
+                        {errorMessages.length === 0 ? (
+                          <div className="code-status">No errors.</div>
+                        ) : (
+                          <ul className="error-list">
+                            {errorMessages.map((message, index) => (
+                              <li key={index} className="error-list-item">{message}</li>
                             ))}
-                          </div>
-                        ))
-                      )}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div
+                    className={`hex-welcome${isDraggingOver ? ' drag-over' : ''}`}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                  >
+                    <div className="hex-welcome-pcb" />
+                    <div className="hex-welcome-inner">
+                      <div className="hex-welcome-status">
+                        <span className="hex-welcome-led" />
+                        <span className="hex-welcome-status-label">no program loaded</span>
+                      </div>
+                      <div className="hex-welcome-drop-zone">
+                        <div className="hex-welcome-drop-text">
+                          drop a <code>.hex</code> file here
+                        </div>
+                        {isDraggingOver && <div className="hex-welcome-drop-ready">release to load</div>}
+                      </div>
+                      <p className="hex-welcome-hint">
+                        or use <strong>Upload Hex</strong> above
+                      </p>
+                      <div className="hex-welcome-or">
+                        <span /><em>or</em><span />
+                      </div>
+                      <p className="hex-welcome-hint">
+                        switch to <strong>Write Code</strong> to compile Arduino C++ directly
+                      </p>
                     </div>
-                  )}
-
-                  {activeCodePanelTab === 'unknown' && (
-                    <div className="code-block">
-                      <div className="code-heading">Unknown Instructions</div>
-                      {unknownInstructions.length === 0 ? (
-                        <div className="code-status">No unknown instructions found.</div>
-                      ) : (
-                        unknownInstructions.map((command, index) => (
-                          <div key={index} className="instruction-item">
-                            <div className="instruction-name">
-                              {`Instruction Name: ${command.CommandName}`}
-                            </div>
-                            <div className="instruction-meta">
-                              {`Source Line: ${command.SourceLineNumber ?? 'Unavailable'}`}
-                            </div>
-                            <div className="instruction-bytes">
-                              {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
-                            </div>
-                            <div className="instruction-bits">
-                              {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {activeCodePanelTab === 'errors' && (
-                    <div className="code-block">
-                      <div className="code-heading">Errors</div>
-                      {errorMessages.length === 0 ? (
-                        <div className="code-status">No errors.</div>
-                      ) : (
-                        <ul className="error-list">
-                          {errorMessages.map((message, index) => (
-                            <li key={index} className="error-list-item">{message}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -704,8 +769,8 @@ function App()
               alt="Instruction run visual"
             />
           </div>
-          <div className="instruction-display">
-            <div className="instruction-title">{commands[instructionPosition]?.CommandName ?? 'NONE'}</div>
+          <div className={`instruction-display${commands[instructionPosition] ? ' active' : ''}`}>
+            <div className="instruction-title">{commands[instructionPosition]?.CommandName ?? '—'}</div>
             <div className="instruction-bytes-small">{formatCommandBytes(commands[instructionPosition]?.CommandBytes ?? [])}</div>
           </div>
           <div className="data-panel">
@@ -730,7 +795,7 @@ function App()
             </div>
           </div>
       </div>
-    </>
+    </div>
   )
 }
 
