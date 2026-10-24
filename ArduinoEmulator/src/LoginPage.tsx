@@ -6,102 +6,82 @@ interface Props {
 
 type AuthMode = 'signin' | 'create'
 
-const SECTIONS = [
-  { id: 'about', label: 'About' },
-  { id: 'mission', label: 'Mission' },
-  { id: 'features', label: 'Features' },
-  { id: 'how', label: 'How It Works' },
+const PITCH = 22
+
+// Copper traces on the board; each end gets a via.
+const BOARD_TRACES = [
+  'M270 139 H322',
+  'M294 241 H330 V318',
+  'M196 305 H240 V390 H322',
+  'M630 402 V446 H600 V492',
+  'M420 42 V100 H460 V200',
+  'M540 42 V96 H580 V180',
+  'M120 200 H210 V168',
+  'M360 410 V460 H300 V492',
+  'M366 164 H400 V216',
+  'M520 410 V470 H492 V492',
+  'M560 318 V292 H610 V236',
+  'M96 300 V342 H150',
+  'M382 116 H404 V66 H328 V42',
+  'M212 266 H228',
+  'M470 296 H500 V318',
 ]
 
-const FEATURES = [
-  { title: 'C++ editor', text: 'Write your sketch in a full code editor with C++ IntelliSense.' },
-  { title: 'Compile to HEX', text: 'GCC builds your code into an Intel HEX file, the same format a real board is flashed with.' },
-  { title: 'Instruction decoding', text: 'The HEX file is translated back into readable AVR instructions.' },
-  { title: 'Step execution', text: 'Run the program one machine instruction at a time.' },
-  { title: 'Registers and flags', text: 'See all 32 general registers, the SREG flags and the program counter update after every step.' },
-  { title: 'Source mapping', text: 'Each instruction is linked to the line of your code that produced it.' },
-]
-
-const STEPS = [
-  { title: 'Write', text: 'Type your sketch in the editor.' },
-  { title: 'Compile', text: 'GCC turns it into an Intel HEX file.' },
-  { title: 'Decode', text: 'The HEX is split into AVR instructions, each mapped to a source line.' },
-  { title: 'Step', text: 'Execute one instruction at a time and watch the machine state change.' },
-]
-
-const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-// Background circuit traces; each one gets a travelling "signal" pulse.
-const TRACES = [
-  'M0 140 H220 L280 200 H400 V90 H520',
-  'M0 620 H160 V520 H300 L360 460 H420',
-  'M1440 180 H1240 L1190 230 H1060 V120',
-  'M1440 700 H1280 V780 H1120 L1070 730 H1000',
-  'M260 900 V780 H380 L430 730 V690',
-  'M1180 0 V80 H1300 V160',
-  'M700 900 V840 H820 L860 800 H960',
-  'M560 0 V50 H660 L700 90 H760',
-]
-
-function traceEnd(d: string): [number, number] {
-  // Walk the path commands to find the final point for the solder pad.
+function pathEnds(d: string): [number, number][] {
+  // Walk the M/H/V/L commands to find the first and last points.
   let x = 0
   let y = 0
+  const points: [number, number][] = []
   for (const [, cmd, args] of d.matchAll(/([MLHV])\s*([\d\s.]+)/g)) {
     const n = args.trim().split(/\s+/).map(Number)
     if (cmd === 'H') x = n[0]
     else if (cmd === 'V') y = n[0]
     else [x, y] = n
+    points.push([x, y])
   }
-  return [x, y]
+  return [points[0], points[points.length - 1]]
 }
-
-// Show each .reveal block while any of it is on screen (ignoring the bottom 12%, so it rises in a
-// little after it appears), and hide it once it leaves so it animates again when you scroll back.
-// Recomputed on every scroll rather than with an IntersectionObserver so it can never get out of sync.
-function updateReveals(root: HTMLElement) {
-  const { top } = root.getBoundingClientRect()
-  const bottom = top + root.clientHeight * 0.88
-  root.querySelectorAll<HTMLElement>('.reveal').forEach((el) => {
-    const rect = el.getBoundingClientRect()
-    el.classList.toggle('in-view', rect.top < bottom && rect.bottom > top)
-  })
-}
-
-function CircuitTraces() {
-  return (
-    <svg className="landing-traces" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      {TRACES.map((d, i) => {
-        const [x, y] = traceEnd(d)
-        return (
-          <g key={i}>
-            <path className="trace-base" d={d} />
-            <path
-              className="trace-pulse"
-              d={d}
-              pathLength={1000}
-              style={{ animationDuration: `${4 + (i % 3) * 1.5}s`, animationDelay: `${i * 0.7}s` }}
-            />
-            <circle className="trace-pad" cx={x} cy={y} r={6} />
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
-const PITCH = 22
 
 function PinHeader({ x, y, count, labels, labelY }: { x: number; y: number; count: number; labels: string[]; labelY: number }) {
   return (
     <g>
-      <rect x={x} y={y} width={count * PITCH} height={26} rx={2} className="pcb-header" />
-      {Array.from({ length: count }, (_, i) => (
-        <g key={i}>
-          <rect x={x + 5 + i * PITCH} y={y + 7} width={12} height={12} className="pcb-socket" />
-          <text x={x + 11 + i * PITCH} y={labelY} className="pcb-pin-label">{labels[i]}</text>
-        </g>
+      <g filter="url(#part-shadow)">
+        <rect x={x} y={y} width={count * PITCH} height={26} rx={2} className="pcb-header" />
+        {Array.from({ length: count - 1 }, (_, i) => (
+          <line key={i} x1={x + (i + 1) * PITCH} y1={y + 3} x2={x + (i + 1) * PITCH} y2={y + 23} className="pcb-header-groove" />
+        ))}
+        {Array.from({ length: count }, (_, i) => (
+          <g key={i}>
+            <rect x={x + 5 + i * PITCH} y={y + 7} width={12} height={12} rx={1} className="pcb-socket" />
+            <rect x={x + 8.5 + i * PITCH} y={y + 10.5} width={5} height={5} fill="url(#gold-grad)" />
+          </g>
+        ))}
+      </g>
+      {labels.map((label, i) => (
+        <text key={i} x={x + 11 + i * PITCH} y={labelY} className="pcb-pin-label">{label}</text>
       ))}
+    </g>
+  )
+}
+
+// Surface-mount resistor (dark body) or capacitor (tan body) with tinned end caps.
+function Smd({ x, y, kind = 'r', vertical = false }: { x: number; y: number; kind?: 'r' | 'c'; vertical?: boolean }) {
+  const w = vertical ? 7 : 14
+  const h = vertical ? 14 : 7
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx={1} className={kind === 'r' ? 'smd-r' : 'smd-c'} />
+      {vertical ? (
+        <>
+          <rect x={x} y={y} width={7} height={3} className="smd-end" />
+          <rect x={x} y={y + 11} width={7} height={3} className="smd-end" />
+        </>
+      ) : (
+        <>
+          <rect x={x} y={y} width={3} height={7} className="smd-end" />
+          <rect x={x + 11} y={y} width={3} height={7} className="smd-end" />
+        </>
+      )}
     </g>
   )
 }
@@ -109,7 +89,9 @@ function PinHeader({ x, y, count, labels, labelY }: { x: number; y: number; coun
 function ArduinoBoard() {
   const [resetting, setResetting] = useState(false)
 
-  const pressReset = () => {
+  const pressReset = (e: React.MouseEvent) => {
+    // Don't let the click also turn the page the board is drawn on.
+    e.stopPropagation()
     if (resetting) return
     setResetting(true)
     setTimeout(() => setResetting(false), 1100)
@@ -123,65 +105,151 @@ function ArduinoBoard() {
       aria-label="Illustration of an Arduino board with its pin 13 LED blinking"
     >
       <defs>
+        <linearGradient id="pcb-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#14919a" />
+          <stop offset="1" stopColor="#0b6870" />
+        </linearGradient>
+        <linearGradient id="metal-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#eef1f4" />
+          <stop offset="1" stopColor="#a9b2bb" />
+        </linearGradient>
+        <linearGradient id="chip-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#2b2f36" />
+          <stop offset="1" stopColor="#15171b" />
+        </linearGradient>
+        <linearGradient id="gold-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f6dc8c" />
+          <stop offset="1" stopColor="#c08f2a" />
+        </linearGradient>
+        <radialGradient id="cap-grad" cx="0.4" cy="0.35" r="0.7">
+          <stop offset="0" stopColor="#f2f5f7" />
+          <stop offset="1" stopColor="#9aa4ae" />
+        </radialGradient>
+        <filter id="part-shadow" x="-20%" y="-20%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="2.5" stdDeviation="2" floodColor="#000" floodOpacity="0.35" />
+        </filter>
         <filter id="board-led-glow" x="-200%" y="-200%" width="500%" height="500%">
           <feGaussianBlur stdDeviation="5" />
         </filter>
       </defs>
 
       {/* PCB */}
-      <path className="pcb" d="M14 0 H650 L686 36 V520 Q686 534 672 534 H14 Q0 534 0 520 V14 Q0 0 14 0 Z" />
+      <path className="pcb" fill="url(#pcb-grad)" d="M14 0 H650 L686 36 V520 Q686 534 672 534 H14 Q0 534 0 520 V14 Q0 0 14 0 Z" />
+      <path className="pcb-edge" d="M18 6 H647 L680 39 V516 Q680 528 668 528 H18 Q6 528 6 516 V18 Q6 6 18 6 Z" />
 
-      {/* Copper traces */}
+      {/* Copper traces and vias */}
       <g className="pcb-trace">
-        <path d="M270 139 H322" />
-        <path d="M294 241 H330 V318" />
-        <path d="M196 305 H240 V390 H322" />
-        <path d="M630 402 V446 H600 V492" />
-        <path d="M420 42 V100 H460 V200" />
-        <path d="M540 42 V96 H580 V180" />
-        <path d="M120 200 H210 V168" />
-        <path d="M360 410 V460 H300 V492" />
+        {BOARD_TRACES.map((d) => (
+          <path key={d} d={d} />
+        ))}
       </g>
+      {BOARD_TRACES.flatMap((d) => pathEnds(d)).map(([cx, cy], i) => (
+        <circle key={i} cx={cx} cy={cy} r={3.2} className="pcb-via" />
+      ))}
 
       {/* Mounting holes */}
       {[[60, 250], [660, 150], [150, 508], [652, 504]].map(([cx, cy]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={11} className="pcb-hole" />
-      ))}
-
-      {/* USB-B port */}
-      <rect x={-34} y={70} width={160} height={118} rx={4} className="pcb-metal" />
-      <rect x={-34} y={98} width={44} height={62} className="pcb-metal-dark" />
-
-      {/* DC barrel jack */}
-      <rect x={-26} y={360} width={140} height={110} rx={6} className="pcb-black" />
-      <circle cx={12} cy={415} r={22} className="pcb-hole-dark" />
-      <circle cx={12} cy={415} r={7} className="pcb-metal" />
-
-      {/* Voltage regulator and capacitors */}
-      <rect x={150} y={280} width={46} height={12} className="pcb-metal" />
-      <rect x={150} y={290} width={46} height={30} className="pcb-black" />
-      {[380, 432].map((cy) => (
-        <g key={cy}>
-          <circle cx={178} cy={cy} r={20} className="pcb-metal" />
-          <circle cx={178} cy={cy} r={11} className="pcb-cap-ring" />
+        <g key={`${cx}-${cy}`}>
+          <circle cx={cx} cy={cy} r={14} className="pcb-hole-ring" />
+          <circle cx={cx} cy={cy} r={8.5} className="pcb-hole" />
         </g>
       ))}
 
+      {/* USB-B port */}
+      <g filter="url(#part-shadow)">
+        <rect x={-34} y={70} width={160} height={118} rx={4} fill="url(#metal-grad)" className="pcb-metal-edge" />
+        <line x1={-30} y1={84} x2={122} y2={84} className="pcb-metal-line" />
+        <line x1={-30} y1={174} x2={122} y2={174} className="pcb-metal-line" />
+        <rect x={-34} y={96} width={46} height={66} rx={2} className="pcb-port-hole" />
+        <rect x={-34} y={112} width={30} height={34} rx={1} className="pcb-port-tongue" />
+        <rect x={110} y={64} width={12} height={8} fill="url(#metal-grad)" />
+        <rect x={110} y={186} width={12} height={8} fill="url(#metal-grad)" />
+      </g>
+
+      {/* DC barrel jack */}
+      <g filter="url(#part-shadow)">
+        <rect x={-26} y={360} width={140} height={110} rx={6} className="pcb-black" />
+        <rect x={-26} y={360} width={140} height={14} rx={6} className="pcb-black-top" />
+        {[40, 56, 72, 88].map((x) => (
+          <line key={x} x1={x} y1={380} x2={x} y2={462} className="pcb-rib" />
+        ))}
+        <circle cx={12} cy={415} r={24} className="pcb-jack-ring" />
+        <circle cx={12} cy={415} r={18} className="pcb-hole-dark" />
+        <circle cx={12} cy={415} r={6} fill="url(#metal-grad)" />
+      </g>
+
+      {/* Voltage regulator (TO-252) */}
+      <g filter="url(#part-shadow)">
+        <rect x={146} y={276} width={54} height={18} rx={2} fill="url(#metal-grad)" />
+        <rect x={150} y={290} width={46} height={30} rx={2} fill="url(#chip-grad)" />
+        {[158, 170, 182].map((x) => (
+          <rect key={x} x={x} y={320} width={6} height={8} fill="url(#metal-grad)" />
+        ))}
+      </g>
+      <Smd x={210} y={286} kind="c" vertical />
+      <Smd x={222} y={286} kind="c" vertical />
+
+      {/* Electrolytic capacitors */}
+      {[380, 432].map((cy, i) => (
+        <g key={cy}>
+          <circle cx={178} cy={cy} r={23} className="pcb-silk-line" />
+          <g filter="url(#part-shadow)">
+            <circle cx={178} cy={cy} r={20} fill="url(#cap-grad)" className="pcb-metal-edge" />
+            <path d={`M${178 - 20} ${cy} A20 20 0 0 1 ${178 - 6} ${cy - 19}`} className="pcb-cap-stripe" />
+            <path d={`M${178 - 9} ${cy} H${178 + 9} M${178} ${cy - 9} V${cy + 9}`} className="pcb-cap-score" />
+          </g>
+          <text x={208} y={cy + 4} className="pcb-label-sm start">C{i + 1}</text>
+        </g>
+      ))}
+
+      {/* Diode, polyfuse and support passives */}
+      <g filter="url(#part-shadow)">
+        <rect x={232} y={328} width={30} height={12} rx={2} className="pcb-black" />
+        <rect x={254} y={328} width={4} height={12} fill="url(#metal-grad)" />
+        <rect x={226} y={396} width={32} height={14} rx={3} className="pcb-polyfuse" />
+      </g>
+      <text x={247} y={354} className="pcb-label-sm">D1</text>
+      <text x={242} y={424} className="pcb-label-sm">F1</text>
+      <Smd x={240} y={444} />
+      <Smd x={262} y={444} />
+
       {/* Reset button */}
       <g className="pcb-reset" onClick={pressReset} role="button" aria-label="Reset board">
-        <rect x={120} y={22} width={40} height={40} rx={4} className="pcb-metal" />
-        <circle cx={140} cy={42} r={12} className="pcb-reset-cap" />
+        <rect x={116} y={18} width={48} height={48} rx={2} className="pcb-silk-line" />
+        {[[118, 20], [154, 20], [118, 56], [154, 56]].map(([x, y]) => (
+          <rect key={`${x}-${y}`} x={x} y={y} width={8} height={8} fill="url(#metal-grad)" />
+        ))}
+        <g filter="url(#part-shadow)">
+          <rect x={122} y={24} width={36} height={36} rx={3} fill="url(#metal-grad)" className="pcb-metal-edge" />
+          <circle cx={140} cy={42} r={12} className="pcb-reset-cap" />
+          <circle cx={136} cy={38} r={4} className="pcb-reset-shine" />
+        </g>
       </g>
-      <text x={168} y={46} className="pcb-label-sm start">RESET</text>
+      <text x={172} y={46} className="pcb-label-sm start">RESET</text>
 
-      {/* USB interface chip */}
-      <rect x={213} y={113} width={52} height={52} className="pcb-chip-pins" transform="rotate(45 239 139)" />
-      <rect x={217} y={117} width={44} height={44} className="pcb-black" transform="rotate(45 239 139)" />
+      {/* USB interface chip (QFP) */}
+      <g transform="rotate(45 239 139)" filter="url(#part-shadow)">
+        <rect x={211} y={111} width={56} height={56} className="pcb-chip-pins" />
+        <rect x={217} y={117} width={44} height={44} rx={2} fill="url(#chip-grad)" />
+        <circle cx={224} cy={124} r={2.5} className="pcb-pin1" />
+      </g>
+      <text x={276} y={104} className="pcb-label-sm start">U3</text>
+      <Smd x={140} y={212} kind="c" />
+      <Smd x={160} y={212} kind="c" />
+      <Smd x={140} y={228} />
+      <Smd x={180} y={228} />
 
       {/* Crystal */}
-      <rect x={230} y={230} width={64} height={22} rx={11} className="pcb-metal" />
+      <g filter="url(#part-shadow)">
+        <rect x={230} y={230} width={64} height={22} rx={11} fill="url(#metal-grad)" className="pcb-metal-edge" />
+        <rect x={236} y={234} width={52} height={14} rx={7} className="pcb-crystal-inner" />
+        <text x={262} y={244.5} className="pcb-crystal-text">16.000</text>
+      </g>
+      <Smd x={236} y={260} kind="c" />
+      <Smd x={274} y={260} kind="c" />
+      <text x={300} y={246} className="pcb-label-sm start">Y1</text>
 
-      {/* Status LEDs */}
+      {/* Status LEDs with their resistors */}
       {[
         { x: 322, y: 112, label: 'L', cls: 'led-l' },
         { x: 322, y: 136, label: 'TX', cls: 'led-tx' },
@@ -189,36 +257,73 @@ function ArduinoBoard() {
         { x: 600, y: 112, label: 'ON', cls: 'led-on' },
       ].map((led) => (
         <g key={led.label} className={`board-led ${led.cls}`}>
+          <rect x={led.x - 3} y={led.y} width={22} height={9} rx={1} className="smd-end" />
           <rect x={led.x} y={led.y} width={16} height={9} rx={2} className="led-body" />
           <g className="led-lit">
             <ellipse cx={led.x + 8} cy={led.y + 4.5} rx={14} ry={10} filter="url(#board-led-glow)" />
             <rect x={led.x} y={led.y} width={16} height={9} rx={2} />
           </g>
-          <text x={led.x - 8} y={led.y + 8} className="pcb-label-sm end">{led.label}</text>
+          <text x={led.x - 9} y={led.y + 8} className="pcb-label-sm end">{led.label}</text>
         </g>
       ))}
+      <Smd x={352} y={113} />
+      <Smd x={352} y={137} />
+      <Smd x={352} y={161} />
+      <Smd x={600} y={180} />
+
+      {/* Small transistor and 3.3 V regulator */}
+      <g filter="url(#part-shadow)">
+        <rect x={430} y={136} width={14} height={10} rx={1} fill="url(#chip-grad)" />
+        <rect x={432} y={146} width={3} height={4} fill="url(#metal-grad)" />
+        <rect x={439} y={146} width={3} height={4} fill="url(#metal-grad)" />
+        <rect x={435.5} y={132} width={3} height={4} fill="url(#metal-grad)" />
+        <rect x={438} y={430} width={28} height={6} fill="url(#metal-grad)" />
+        <rect x={436} y={436} width={32} height={16} rx={1} fill="url(#chip-grad)" />
+        {[442, 450, 458].map((x) => (
+          <rect key={x} x={x} y={452} width={4} height={5} fill="url(#metal-grad)" />
+        ))}
+      </g>
+      <text x={437} y={128} className="pcb-label-sm">Q1</text>
+
+      {/* Passives near the right edge */}
+      <Smd x={636} y={214} kind="c" vertical />
+      <Smd x={652} y={214} kind="c" vertical />
+      <Smd x={644} y={254} vertical />
+      <Smd x={430} y={292} />
+      <Smd x={452} y={292} kind="c" />
 
       {/* Silkscreen name */}
-      <text x={490} y={244} className="pcb-brand">ARDUINO</text>
-      <text x={490} y={270} className="pcb-brand-sub">EMULATOR</text>
+      <text x={490} y={258} className="pcb-brand">
+        <tspan className="pcb-brand-e">EE</tspan>XPO
+      </text>
 
-      {/* Microcontroller in its socket */}
-      <rect x={322} y={318} width={316} height={92} rx={3} className="pcb-chip-socket" />
-      {Array.from({ length: 14 }, (_, i) => (
-        <g key={i}>
-          <rect x={340 + i * 21} y={314} width={9} height={12} className="pcb-metal" />
-          <rect x={340 + i * 21} y={402} width={9} height={12} className="pcb-metal" />
-        </g>
-      ))}
-      <rect x={330} y={326} width={300} height={76} rx={3} className="pcb-black" />
-      <circle cx={330} cy={364} r={9} className="pcb-chip-socket" />
-      <text x={480} y={369} className="pcb-chip-text">AVR</text>
+      {/* Microcontroller in its DIP socket */}
+      <g filter="url(#part-shadow)">
+        <rect x={322} y={318} width={316} height={92} rx={3} className="pcb-chip-socket" />
+        <line x1={330} y1={364} x2={630} y2={364} className="pcb-socket-groove" />
+        {Array.from({ length: 14 }, (_, i) => (
+          <g key={i}>
+            <rect x={340 + i * 21} y={313} width={9} height={14} rx={1} fill="url(#metal-grad)" />
+            <rect x={340 + i * 21} y={401} width={9} height={14} rx={1} fill="url(#metal-grad)" />
+          </g>
+        ))}
+        <rect x={330} y={326} width={300} height={76} rx={3} fill="url(#chip-grad)" />
+        <circle cx={330} cy={364} r={9} className="pcb-chip-socket" />
+        <circle cx={348} cy={390} r={3.5} className="pcb-pin1" />
+        <text x={480} y={362} className="pcb-chip-text">AVR</text>
+        <text x={480} y={380} className="pcb-chip-subtext">8-BIT MICROCONTROLLER</text>
+      </g>
 
       {/* ICSP header */}
-      <rect x={648} y={330} width={30} height={44} rx={2} className="pcb-header" />
-      {[0, 1, 2].map((r) => [0, 1].map((c) => (
-        <rect key={`${r}-${c}`} x={652 + c * 13} y={334 + r * 13} width={9} height={9} className="pcb-socket" />
-      )))}
+      <text x={663} y={322} className="pcb-label-sm">ICSP</text>
+      <g filter="url(#part-shadow)">
+        <rect x={648} y={330} width={30} height={44} rx={2} className="pcb-header" />
+        {[0, 1, 2].map((r) =>
+          [0, 1].map((c) => (
+            <rect key={`${r}-${c}`} x={652.5 + c * 13} y={334.5 + r * 13} width={8} height={8} fill="url(#gold-grad)" />
+          )),
+        )}
+      </g>
 
       {/* Pin headers */}
       <PinHeader x={240} y={16} count={10} labels={['SCL', 'SDA', 'AREF', 'GND', '13', '12', '~11', '~10', '~9', '8']} labelY={56} />
@@ -227,8 +332,8 @@ function ArduinoBoard() {
 
       <PinHeader x={240} y={492} count={8} labels={['', 'IO', 'RST', '3V3', '5V', 'GND', 'GND', 'VIN']} labelY={484} />
       <PinHeader x={476} y={492} count={6} labels={['A0', 'A1', 'A2', 'A3', 'A4', 'A5']} labelY={484} />
-      <text x={328} y={464} className="pcb-label">POWER</text>
-      <text x={542} y={464} className="pcb-label">ANALOG IN</text>
+      <text x={328} y={466} className="pcb-label">POWER</text>
+      <text x={542} y={466} className="pcb-label">ANALOG IN</text>
     </svg>
   )
 }
@@ -354,43 +459,340 @@ function AuthModal({ mode, onModeChange, onSubmit, onClose }: AuthModalProps) {
   )
 }
 
+// The two E's are drawn in the accent color, the rest of the name in white.
+function BrandName() {
+  return (
+    <>
+      <span className="brand-e">EE</span>XPO
+    </>
+  )
+}
+
+// Reserved notebook sections. Pages are numbered from the first page after the contents; the content
+// itself is left blank to be written later.
+const SECTIONS = [
+  { title: 'Mission', page: 1 },
+  { title: 'About', page: 2 },
+  { title: 'Features', page: 3 },
+  { title: 'How It Works', page: 4 },
+  { title: 'Getting Started', page: 5 },
+  { title: 'Notes', page: 6 },
+]
+
+// Each leaf is one physical sheet: its front is a right-hand page, its back the next left-hand page.
+// "Flipped" counts how many leaves have been turned: 0 = closed, 1 = contents, 2+ = section spreads.
+const LEAF_COUNT = 4
+const FLIP_MS = 900
+const FLIP_STAGGER_MS = 180
+// Length of the opening sequence (title, then the book swinging up to face the camera) before the
+// cover opens. The keyframes in App.css are timed against this.
+const INTRO_MS = 4600
+const COVER_OPEN_MS = 1500
+// How long after the cover starts opening the camera pushes in until the pages fill the screen.
+const ZOOM_DELAY_MS = 700
+
+const spreadForPage = (page: number) => Math.floor((page - 1) / 2) + 2
+
+const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+function PaperPage({
+  side,
+  title,
+  page,
+  onContents,
+  children,
+}: {
+  side: 'left' | 'right'
+  title: string
+  page?: number
+  onContents?: () => void
+  children?: React.ReactNode
+}) {
+  return (
+    <div className={`paper paper-${side}`}>
+      <header className="paper-head">
+        <div className="paper-field paper-field-title">
+          <span className="paper-field-label">Title</span>
+          <span className="paper-title">{title}</span>
+        </div>
+        <div className="paper-field">
+          <span className="paper-field-label">Page</span>
+          <span className="paper-field-value">{page ?? ''}</span>
+        </div>
+      </header>
+      <div className="paper-grid">{children}</div>
+      <footer className="paper-foot">
+        <div className="paper-field">
+          <span className="paper-field-label">Signed</span>
+        </div>
+        <div className="paper-field">
+          <span className="paper-field-label">Date</span>
+        </div>
+        {onContents && (
+          <button
+            type="button"
+            className="paper-contents-link"
+            onClick={(e) => {
+              e.stopPropagation()
+              onContents()
+            }}
+          >
+            Contents
+          </button>
+        )}
+      </footer>
+      <span className="page-curl" />
+      <span className="face-shade" />
+    </div>
+  )
+}
+
+function Cover() {
+  return (
+    <div className="cover">
+      <span className="cover-hinge" />
+      <span className="cover-corner cover-corner-top" />
+      <span className="cover-corner cover-corner-bottom" />
+      <div className="cover-label">
+        <div className="cover-name">
+          <span className="cover-name-e">EE</span>XPO
+        </div>
+        <div className="cover-sub">Engineering Notebook</div>
+      </div>
+      <div className="cover-board">
+        <ArduinoBoard />
+      </div>
+      <span className="face-shade" />
+    </div>
+  )
+}
+
+// Opening title: each letter flies in out of the dark, then the whole word tilts away into the distance.
+function IntroTitle() {
+  return (
+    <div className="intro-cam intro-title-cam" aria-hidden="true">
+      <div className="intro-title">
+        {'EEXPO'.split('').map((ch, i) => (
+          <span
+            key={i}
+            className={`intro-letter${i < 2 ? ' intro-letter-e' : ''}`}
+            style={{ animationDelay: `${0.25 + i * 0.11}s, ${1.2 + i * 0.09}s` }}
+          >
+            {ch}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// A solid 3D version of the closed notebook (covers, spine and page edges) used only for the opening
+// camera move. It ends exactly where the real cover sits, so the swap to the flippable book is invisible.
+function ClosedBook3D() {
+  return (
+    <div className="intro-cam intro-book-cam">
+      <div className="book3d">
+        <div className="book3d-face book3d-front">
+          <Cover />
+          <div className="book3d-glare" />
+        </div>
+        <div className="book3d-face book3d-back" />
+        <div className="book3d-face book3d-spine" />
+        <div className="book3d-face book3d-pages-right" />
+        <div className="book3d-face book3d-pages-top" />
+        <div className="book3d-face book3d-pages-bottom" />
+      </div>
+    </div>
+  )
+}
+
+function InsideCover() {
+  return (
+    <div className="endpaper">
+      <div className="bookplate">
+        <div className="bookplate-name">
+          <span className="cover-name-e">EE</span>XPO
+        </div>
+        <div className="bookplate-line" />
+      </div>
+      <span className="face-shade" />
+    </div>
+  )
+}
+
+// Parts called out on the About page. Positions are in the board drawing's own coordinates: `part` is
+// the point on the board, `label` where the callout sits. The notes are placeholder text to rewrite.
+const ABOUT_PARTS: { name: string; note: string; part: [number, number]; label: [number, number]; side: 'top' | 'bottom' }[] = [
+  { name: 'USB', note: 'Upload and serial', part: [46, 70], label: [-10, -90], side: 'top' },
+  { name: 'Reset', note: 'Restarts your program', part: [140, 22], label: [175, -90], side: 'top' },
+  { name: 'Pin 13 LED', note: 'Blinks with your code', part: [330, 112], label: [375, -90], side: 'top' },
+  { name: 'Digital I/O', note: 'Pins 0–13, ~ = PWM', part: [560, 16], label: [585, -90], side: 'top' },
+  { name: 'Power Jack', note: '7–12 V DC in', part: [44, 470], label: [20, 625], side: 'bottom' },
+  { name: 'Power Pins', note: '5 V, 3.3 V, GND', part: [328, 518], label: [235, 625], side: 'bottom' },
+  { name: 'Microcontroller', note: '8-bit AVR, runs your sketch', part: [480, 402], label: [445, 625], side: 'bottom' },
+  { name: 'Analog In', note: 'A0–A5, 10-bit', part: [608, 518], label: [655, 625], side: 'bottom' },
+]
+
+// Board drawing viewBox, so callouts can be placed as percentages of the board's box.
+const BOARD_VIEW = { x: -40, y: -6, w: 740, h: 548 }
+const BOARD_CENTER: [number, number] = [330, 268]
+
+// The board slams onto the page, ink ripples spread from the impact, and each callout appears as the
+// ripple reaches it. Remounted (via key) every time the About page is turned to, so it replays.
+function AboutDiagram() {
+  return (
+    <div className="about-diagram">
+      <div className="about-board-wrap">
+        <div className="about-impact-shadow" />
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="about-ripple" style={{ '--i': i } as React.CSSProperties} />
+        ))}
+        <div className="about-slam">
+          <ArduinoBoard />
+        </div>
+
+        <svg className="about-leaders" viewBox={`${BOARD_VIEW.x} ${BOARD_VIEW.y} ${BOARD_VIEW.w} ${BOARD_VIEW.h}`} aria-hidden="true">
+          {ABOUT_PARTS.map((p) => {
+            const d = Math.hypot(p.part[0] - BOARD_CENTER[0], p.part[1] - BOARD_CENTER[1]) * 0.0011
+            return (
+              <g key={p.name} style={{ '--d': `${d}s` } as React.CSSProperties}>
+                <path d={`M${p.part[0]} ${p.part[1]} L${p.label[0]} ${p.label[1]}`} pathLength={1} className="about-leader" />
+                <circle cx={p.part[0]} cy={p.part[1]} r={7} className="about-dot-pulse" />
+                <circle cx={p.part[0]} cy={p.part[1]} r={6} className="about-dot" />
+              </g>
+            )
+          })}
+        </svg>
+
+        {ABOUT_PARTS.map((p) => {
+          const d = Math.hypot(p.part[0] - BOARD_CENTER[0], p.part[1] - BOARD_CENTER[1]) * 0.0011
+          return (
+            <div
+              key={p.name}
+              className={`callout callout-${p.side}`}
+              style={
+                {
+                  left: `${((p.label[0] - BOARD_VIEW.x) / BOARD_VIEW.w) * 100}%`,
+                  top: `${((p.label[1] - BOARD_VIEW.y) / BOARD_VIEW.h) * 100}%`,
+                  '--d': `${d}s`,
+                } as React.CSSProperties
+              }
+            >
+              <div className="callout-inner">
+                <div className="callout-name">{p.name}</div>
+                <div className="callout-note">{p.note}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ContentsPage({ onSelect }: { onSelect: (page: number) => void }) {
+  return (
+    <PaperPage side="right" title="Contents">
+      <ol className="toc">
+        {SECTIONS.map((s) => (
+          <li key={s.title}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onSelect(s.page)
+              }}
+            >
+              <span className="toc-title">{s.title}</span>
+              <span className="toc-leader" />
+              <span className="toc-page">{s.page}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </PaperPage>
+  )
+}
+
 export function LoginPage({ onLogin }: Props) {
-  const [activeSection, setActiveSection] = useState('')
-  const [scrolled, setScrolled] = useState(false)
   const [authMode, setAuthMode] = useState<AuthMode | null>(null)
   const [leaving, setLeaving] = useState(false)
-  const pageRef = useRef<HTMLDivElement>(null)
+  const [flipped, setFlipped] = useState(0)
+  const [introDone, setIntroDone] = useState(false)
+  const [skipped, setSkipped] = useState(false)
+  const [coverOpening, setCoverOpening] = useState(false)
+  const [zoomAllowed, setZoomAllowed] = useState(false)
+  // Bumped each time the About spread comes into view, to replay its animation.
+  const [aboutVisit, setAboutVisit] = useState(0)
+  const introTimer = useRef<number | undefined>(undefined)
+  // Leaves mid-turn are lifted above both stacks until their turn finishes.
+  const [turning, setTurning] = useState<Record<number, number>>({})
+  const flippedRef = useRef(0)
+  const timers = useRef<number[]>([])
 
-  // Check reveals on load and whenever the window size changes; scrolling is handled in handleScroll.
-  useEffect(() => {
-    const update = () => pageRef.current && updateReveals(pageRef.current)
-    update()
-    window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
+  // Turn leaves one at a time until the book is open at the target spread.
+  const goTo = useCallback((target: number) => {
+    target = Math.max(0, Math.min(LEAF_COUNT, target))
+    timers.current.forEach(clearTimeout)
+    timers.current = []
+    let current = flippedRef.current
+    let step = 0
+    while (current !== target) {
+      const forward = target > current
+      const leaf = forward ? current : current - 1
+      current += forward ? 1 : -1
+      const value = current
+      timers.current.push(
+        window.setTimeout(() => {
+          flippedRef.current = value
+          setFlipped(value)
+          if (value === spreadForPage(2)) setAboutVisit((v) => v + 1)
+          setTurning((t) => ({ ...t, [leaf]: 20 + (forward ? leaf : LEAF_COUNT - leaf) }))
+          window.setTimeout(() => {
+            setTurning((t) => {
+              const next = { ...t }
+              delete next[leaf]
+              return next
+            })
+          }, FLIP_MS)
+        }, step * FLIP_STAGGER_MS),
+      )
+      step++
+    }
   }, [])
 
-  // Highlight the nav link for the last section whose top has passed the upper third of the screen.
-  const handleScroll = () => {
-    const root = pageRef.current
-    if (!root) return
-    updateReveals(root)
-    setScrolled(root.scrollTop > 8)
-    const line = root.getBoundingClientRect().top + root.clientHeight / 3
-    let current = ''
-    root.querySelectorAll<HTMLElement>('[data-section]').forEach((el) => {
-      if (el.getBoundingClientRect().top <= line) current = el.dataset.section ?? ''
-    })
-    // The last section can be too short to reach the line, so count hitting the bottom as reaching it.
-    if (root.scrollTop + root.clientHeight >= root.scrollHeight - 2) current = SECTIONS[SECTIONS.length - 1].id
-    setActiveSection(current)
-  }
+  // End the opening sequence and swing the cover open, slower than a normal page turn.
+  const finishIntro = useCallback(
+    (skip: boolean) => {
+      clearTimeout(introTimer.current)
+      setIntroDone(true)
+      setSkipped(skip)
+      setCoverOpening(true)
+      goTo(1)
+      window.setTimeout(() => setCoverOpening(false), COVER_OPEN_MS)
+      window.setTimeout(() => setZoomAllowed(true), skip ? 0 : ZOOM_DELAY_MS)
+    },
+    [goTo],
+  )
 
-  const scrollToSection = (id: string) => {
-    document.getElementById(`section-${id}`)?.scrollIntoView({
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-      block: 'start',
-    })
-  }
+  // With reduced motion the intro is skipped straight away.
+  useEffect(() => {
+    const reduced = prefersReducedMotion()
+    introTimer.current = window.setTimeout(() => finishIntro(reduced), reduced ? 0 : INTRO_MS)
+    return () => clearTimeout(introTimer.current)
+  }, [finishIntro])
+
+  useEffect(() => {
+    if (authMode) return
+    const onKey = (e: KeyboardEvent) => {
+      // Any key skips the intro; afterwards the arrow keys turn pages.
+      if (!introDone) return finishIntro(true)
+      if (e.key === 'ArrowRight') goTo(flippedRef.current + 1)
+      if (e.key === 'ArrowLeft') goTo(flippedRef.current - 1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [authMode, goTo, introDone, finishIntro])
 
   const closeAuth = useCallback(() => setAuthMode(null), [])
 
@@ -399,32 +801,42 @@ export function LoginPage({ onLogin }: Props) {
     setTimeout(onLogin, 380)
   }
 
+  const toContents = () => goTo(1)
+  const toPage = (page: number) => goTo(spreadForPage(page))
+
+  const leaves = [
+    { front: <Cover />, back: <InsideCover /> },
+    {
+      front: <ContentsPage onSelect={toPage} />,
+      back: <PaperPage side="left" title={SECTIONS[0].title} page={1} onContents={toContents} />,
+    },
+    {
+      front: (
+        <PaperPage side="right" title={SECTIONS[1].title} page={2} onContents={toContents}>
+          <AboutDiagram key={aboutVisit} />
+        </PaperPage>
+      ),
+      back: <PaperPage side="left" title={SECTIONS[2].title} page={3} onContents={toContents} />,
+    },
+    {
+      front: <PaperPage side="right" title={SECTIONS[3].title} page={4} onContents={toContents} />,
+      back: <PaperPage side="left" title={SECTIONS[4].title} page={5} onContents={toContents} />,
+    },
+  ]
+
   return (
     <div
-      ref={pageRef}
-      className={`landing${leaving ? ' landing-out' : ''}${authMode ? ' modal-open' : ''}`}
-      onScroll={handleScroll}
+      className={`landing${leaving ? ' landing-out' : ''}${authMode ? ' modal-open' : ''}${introDone ? '' : ' intro-playing'}`}
     >
-      <div className="login-pcb" />
-      <CircuitTraces />
-
-      <nav className={`landing-nav${scrolled ? ' scrolled' : ''}`}>
-        <button type="button" className="nav-brand" onClick={() => pageRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
+      <nav className="landing-nav">
+        <span className="nav-brand">
           <img src="/ArduinoEmulatorIconTrans.png" alt="" />
-          <span><span className="brand-accent">Arduino</span> Emulator</span>
-        </button>
+          <span><BrandName /></span>
+        </span>
         <div className="nav-links">
-          {SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className={`nav-link${activeSection === s.id ? ' active' : ''}`}
-              aria-current={activeSection === s.id ? 'true' : undefined}
-              onClick={() => scrollToSection(s.id)}
-            >
-              {s.label}
-            </button>
-          ))}
+          <button type="button" className="nav-link active" aria-current="page" onClick={toContents}>
+            Home
+          </button>
         </div>
         <div className="nav-auth">
           <button type="button" className="nav-link" onClick={() => setAuthMode('signin')}>
@@ -436,98 +848,76 @@ export function LoginPage({ onLogin }: Props) {
         </div>
       </nav>
 
-      <main className="landing-main">
-        <header className="hero" data-section="">
-          <div className="hero-text">
-            <p className="hero-kicker">AVR instruction debugger</p>
-            <h1 className="hero-title">
-              <span className="brand-accent">Arduino</span>
-              <br />
-              Emulator
-            </h1>
-            <p className="hero-sub">
-              Write an Arduino sketch, compile it, and step through the machine code one instruction at a time.
-            </p>
-            <div className="hero-actions">
-              <button type="button" className="landing-btn primary" onClick={() => setAuthMode('create')}>
-                Get Started
-              </button>
-              <button type="button" className="landing-btn" onClick={() => scrollToSection('about')}>
-                Learn More
-              </button>
+      {/* Once open, the spread fills the screen; closing the book pulls back out to the desk */}
+      <main className={`book-stage${flipped > 0 && zoomAllowed ? ' fullscreen' : ''}`}>
+        <button
+          type="button"
+          className="book-arrow book-arrow-prev"
+          aria-label="Previous page"
+          onClick={() => goTo(flipped - 1)}
+          disabled={flipped === 0}
+        >
+          ‹
+        </button>
+
+        <div className={`book-zoom${introDone ? ' shown' : ''}${skipped ? ' skipped' : ''}`}>
+          <div className={`book${flipped === 0 ? ' closed' : ''}${coverOpening ? ' cover-opening' : ''}`}>
+            <div className={`book-shadow book-shadow-left${flipped > 0 ? ' visible' : ''}`} />
+            <div className="book-shadow book-shadow-right" />
+
+            <div className="book-base">
+              <PaperPage side="right" title={SECTIONS[5].title} page={6} onContents={toContents} />
             </div>
-          </div>
-          <div className="hero-board">
-            <ArduinoBoard />
-          </div>
-        </header>
 
-        <section id="section-about" data-section="about" className="landing-section">
-          <h2 className="reveal">About</h2>
-          <div className="section-body">
-            <p className="section-lead reveal">
-              Arduino Emulator is a debugger for the AVR microcontrollers on Arduino boards. It shows you what your
-              sketch actually does at the hardware level.
-            </p>
-            <p className="reveal reveal-late">
-              You write C++ the same way you would in the Arduino IDE. Instead of uploading it to a board, the emulator
-              compiles it and lets you run it one instruction at a time, showing the registers, status flags and program
-              counter after every step, along with the line of code each instruction came from.
-            </p>
-          </div>
-        </section>
+            {leaves.map((leaf, i) => {
+              const isFlipped = i < flipped
+              const z = turning[i] ?? (isFlipped ? i + 1 : LEAF_COUNT - i + 1)
+              return (
+                <div
+                  key={i}
+                  className={`leaf${isFlipped ? ' flipped' : ''}${i in turning ? ' turning' : ''}`}
+                  style={{ zIndex: z }}
+                  onClick={() => goTo(isFlipped ? flipped - 1 : flipped + 1)}
+                >
+                  <div className="face front">{leaf.front}</div>
+                  <div className="face back">{leaf.back}</div>
+                </div>
+              )
+            })}
 
-        <section id="section-mission" data-section="mission" className="landing-section">
-          <h2 className="reveal">Mission</h2>
-          <div className="section-body">
-            <p className="section-lead reveal">Make it possible to see how a microcontroller runs your code.</p>
-            <p className="reveal reveal-late">
-              Calling <code>digitalWrite(13, HIGH)</code> sets a bit in a register, and that bit drives a pin. Most
-              tools stop at the source code and never show that part. This project is meant to make it visible, so
-              learning embedded programming also means learning how the hardware works.
-            </p>
           </div>
-        </section>
+        </div>
 
-        <section id="section-features" data-section="features" className="landing-section">
-          <h2 className="reveal">Features</h2>
-          <div className="section-body">
-            <ul className="feature-list">
-              {FEATURES.map((f, i) => (
-                <li key={f.title} className="reveal" style={{ transitionDelay: `${(i % 2) * 90}ms` }}>
-                  <h3>{f.title}</h3>
-                  <p>{f.text}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section id="section-how" data-section="how" className="landing-section">
-          <h2 className="reveal">How It Works</h2>
-          <div className="section-body">
-            <ol className="step-list">
-              {STEPS.map((s, i) => (
-                <li key={s.title} className="reveal" style={{ transitionDelay: `${i * 90}ms` }}>
-                  <span className="step-num">{String(i + 1).padStart(2, '0')}</span>
-                  <h3>{s.title}</h3>
-                  <p>{s.text}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
+        <button
+          type="button"
+          className="book-arrow book-arrow-next"
+          aria-label="Next page"
+          onClick={() => goTo(flipped + 1)}
+          disabled={!introDone || flipped === LEAF_COUNT}
+        >
+          ›
+        </button>
       </main>
+
+      <div className="intro-light" />
+      {!introDone && (
+        <div className="intro-scene" onClick={() => finishIntro(true)}>
+          <IntroTitle />
+          <div className="intro-book-shadow" />
+          <ClosedBook3D />
+        </div>
+      )}
+      {!introDone && (
+        <button type="button" className="intro-skip" onClick={() => finishIntro(true)}>
+          Skip intro ›
+        </button>
+      )}
+      <div className="letterbox letterbox-top" />
+      <div className="letterbox letterbox-bottom" />
 
       {authMode && (
         <AuthModal mode={authMode} onModeChange={setAuthMode} onSubmit={handleAuthSubmit} onClose={closeAuth} />
       )}
-
-      <footer className="landing-footer">
-        <span className="login-led" />
-        <span>Arduino Emulator</span>
-      </footer>
     </div>
   )
 }
