@@ -48,3 +48,15 @@ button:focus-visible {
   color: rgba(232, 238, 244, 0.6);
   font-size: 14px;
 }
+
+.app-load-failed {
+  max-width: 360px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.app-load-failed button {
+  margin-top: 8px;
+  background: #3dbabd;
+  color: #0e2a2e;
+}

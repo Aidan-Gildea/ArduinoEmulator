@@ -613,7 +613,7 @@ function App({ onExit }: { onExit: () => void })
   }, [project, projectName, codeInput, circuit, projects]);
 
   const openProject = (p: Project) => {
-    if (dirty && !window.confirm('Discard unsaved changes to the current project?')) return;
+    if (dirty && !window.confirm('Discard unsaved changes to the current project?')) return false;
     setProject(p);
     setProjectName(p.name);
     setCodeInput(p.code);
@@ -625,6 +625,14 @@ function App({ onExit }: { onExit: () => void })
     setElfText('');
     setErrorMessages([]);
     loadProgram([], []);
+    return true;
+  };
+
+  // "Open in editor" on a lesson's example: a new, unsaved project holding that code.
+  const tryLessonCode = (code: string, lessonTitle: string) => {
+    if (!openProject({ ...newProject(lessonTitle), code })) return;
+    setTab('code');
+    setCodeSource('sketch');
   };
 
   const deleteProject = (p: Project) => {
@@ -909,7 +917,7 @@ function App({ onExit }: { onExit: () => void })
             />
           </section>
 
-          {tab === 'learn' && <Learn />}
+          {tab === 'learn' && <Learn onTryCode={tryLessonCode} />}
         </div>
       </div>
     </div>

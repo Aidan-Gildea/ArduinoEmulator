@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArduinoBoard } from './ArduinoBoard'
+import { HeroRig } from './HeroRig'
 
 interface Props {
   onLogin: () => void
@@ -139,85 +140,36 @@ function BrandName() {
   )
 }
 
-// Reserved notebook sections. Pages are numbered from the first page after the contents; the content
-// itself is left blank to be written later.
-const SECTIONS = [
-  { title: 'What is EEXPO', page: 1 },
-  { title: 'About', page: 2 },
-  { title: 'Mission', page: 3 },
-  { title: 'Features', page: 4 },
-  { title: 'How It Works', page: 5 },
-  { title: 'Getting Started', page: 6 },
-  { title: 'Notes', page: 7 },
+// Splash page sections, in scroll order. Mission, Features and How It Works are reserved for your
+// own writing and start empty.
+const SPLASH_SECTIONS = [
+  { id: 'what', title: 'What is EEXPO' },
+  { id: 'about', title: 'About' },
+  { id: 'mission', title: 'Mission' },
+  { id: 'features', title: 'Features' },
+  { id: 'how', title: 'How It Works' },
+  { id: 'start', title: 'Get Started' },
 ]
 
-// Each leaf is one physical sheet: its front is a right-hand page, its back the next left-hand page.
-// "Flipped" counts how many leaves have been turned: 0 = closed, 1 = contents, 2+ = section spreads.
-const LEAF_COUNT = 5
-const FLIP_MS = 900
-const FLIP_STAGGER_MS = 180
-// Length of the opening sequence (title, then the book swinging up to face the camera) before the
-// cover opens. The keyframes in App.css are timed against this.
+// Length of the opening sequence (title, then the notebook swinging up to face the camera), and of the
+// dive into its label that fades into the splash page. The keyframes in App.css are timed against these.
 const INTRO_MS = 4600
-const COVER_OPEN_MS = 1500
-// The camera pushes in once the cover has finished opening. Zooming while the cover (with its detailed
-// board drawing) is still swinging means redrawing that drawing at a new size every frame.
-const ZOOM_DELAY_MS = COVER_OPEN_MS
-
-const spreadForPage = (page: number) => Math.floor((page - 1) / 2) + 2
+const DIVE_MS = 1300
+// When the hero's board has landed and been wired up and "powers on" (its LEDs light up and the e-ink
+// display refreshes), measured from the start of the dive. Matches the hero entrance timing in App.css.
+const POWER_ON_MS = 3000
 
 const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-function PaperPage({
-  side,
-  title,
-  page,
-  onContents,
-  children,
-}: {
-  side: 'left' | 'right'
-  title: string
-  page?: number
-  onContents?: () => void
-  children?: React.ReactNode
-}) {
-  return (
-    <div className={`paper paper-${side}`}>
-      <header className="paper-head">
-        <div className="paper-field paper-field-title">
-          <span className="paper-field-label">Title</span>
-          <span className="paper-title">{title}</span>
-        </div>
-        <div className="paper-field">
-          <span className="paper-field-label">Page</span>
-          <span className="paper-field-value">{page ?? ''}</span>
-        </div>
-      </header>
-      <div className="paper-grid">{children}</div>
-      <footer className="paper-foot">
-        <div className="paper-field">
-          <span className="paper-field-label">Signed</span>
-        </div>
-        <div className="paper-field">
-          <span className="paper-field-label">Date</span>
-        </div>
-        {onContents && (
-          <button
-            type="button"
-            className="paper-contents-link"
-            onClick={(e) => {
-              e.stopPropagation()
-              onContents()
-            }}
-          >
-            Contents
-          </button>
-        )}
-      </footer>
-      <span className="page-curl" />
-      <span className="face-shade" />
-    </div>
-  )
+// Show each .reveal block while any of it is on screen (ignoring the bottom 12%, so it rises in a
+// little after it appears), and hide it once it leaves so it animates again when you scroll back.
+function updateReveals(root: HTMLElement) {
+  const { top } = root.getBoundingClientRect()
+  const bottom = top + root.clientHeight * 0.88
+  root.querySelectorAll<HTMLElement>('.reveal').forEach((el) => {
+    const rect = el.getBoundingClientRect()
+    el.classList.toggle('in-view', rect.top < bottom && rect.bottom > top)
+  })
 }
 
 function Cover() {
@@ -233,9 +185,9 @@ function Cover() {
         <div className="cover-sub">Engineering Notebook</div>
       </div>
       <div className="cover-board">
-        <ArduinoBoard />
+        {/* LEDs held still: each blink would repaint the whole cover, which the dive draws at up to 3x */}
+        <ArduinoBoard ledL={false} activity={false} />
       </div>
-      <span className="face-shade" />
     </div>
   )
 }
@@ -259,8 +211,8 @@ function IntroTitle() {
   )
 }
 
-// A solid 3D version of the closed notebook (covers, spine and page edges) used only for the opening
-// camera move. It ends exactly where the real cover sits, so the swap to the flippable book is invisible.
+// A solid 3D version of the closed notebook (covers, spine and page edges) for the opening camera move,
+// which ends by diving into its label.
 function ClosedBook3D() {
   return (
     <div className="intro-cam intro-book-cam">
@@ -275,20 +227,6 @@ function ClosedBook3D() {
         <div className="book3d-face book3d-pages-top" />
         <div className="book3d-face book3d-pages-bottom" />
       </div>
-    </div>
-  )
-}
-
-function InsideCover() {
-  return (
-    <div className="endpaper">
-      <div className="bookplate">
-        <div className="bookplate-name">
-          <span className="cover-name-e">EE</span>XPO
-        </div>
-        <div className="bookplate-line" />
-      </div>
-      <span className="face-shade" />
     </div>
   )
 }
@@ -311,7 +249,7 @@ const BOARD_VIEW = { x: -40, y: -6, w: 740, h: 548 }
 const BOARD_CENTER: [number, number] = [330, 268]
 
 // The board slams onto the page, ink ripples spread from the impact, and each callout appears as the
-// ripple reaches it. Remounted (via key) every time the About page is turned to, so it replays.
+// ripple reaches it. Remounted (via key) every time the About section scrolls into view, so it replays.
 function AboutDiagram() {
   return (
     <div className="about-diagram">
@@ -380,171 +318,159 @@ function WhatIsEexpo() {
   )
 }
 
-// Inside back cover, showing once the last page has been turned.
-function InsideBackCover() {
-  return <div className="endpaper" />
-}
-
-function ContentsPage({ onSelect }: { onSelect: (page: number) => void }) {
-  return (
-    <PaperPage side="right" title="Contents">
-      <ol className="toc">
-        {SECTIONS.map((s) => (
-          <li key={s.title}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onSelect(s.page)
-              }}
-            >
-              <span className="toc-title">{s.title}</span>
-              <span className="toc-leader" />
-              <span className="toc-page">{s.page}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
-    </PaperPage>
-  )
-}
-
 export function LoginPage({ onLogin, onSignInIntent }: Props) {
   const [authMode, setAuthMode] = useState<AuthMode | null>(null)
   const [leaving, setLeaving] = useState(false)
-  const [flipped, setFlipped] = useState(0)
-  const [introDone, setIntroDone] = useState(false)
-  const [skipped, setSkipped] = useState(false)
-  const [coverOpening, setCoverOpening] = useState(false)
-  const [zoomAllowed, setZoomAllowed] = useState(false)
-  // Bumped each time the About spread comes into view, to replay its animation.
+  // intro: the opening plays · dive: the camera dives into the label as the splash fades in · done
+  const [stage, setStage] = useState<'intro' | 'dive' | 'done'>('intro')
+  const [activeSection, setActiveSection] = useState('')
+  // Bumped each time the About section scrolls into view, to replay its animation.
   const [aboutVisit, setAboutVisit] = useState(0)
-  const introTimer = useRef<number | undefined>(undefined)
-  // Leaves mid-turn are lifted above both stacks until their turn finishes.
-  const [turning, setTurning] = useState<Record<number, number>>({})
-  const flippedRef = useRef(0)
+  const [powered, setPowered] = useState(false)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const heroRef = useRef<HTMLElement>(null)
+  const pointerFrame = useRef(0)
+  const aboutInView = useRef(false)
   const timers = useRef<number[]>([])
 
-  // Turn leaves one at a time until the book is open at the target spread.
-  const goTo = useCallback((target: number) => {
-    target = Math.max(0, Math.min(LEAF_COUNT, target))
+  const finishIntro = useCallback((skip: boolean) => {
     timers.current.forEach(clearTimeout)
     timers.current = []
-    let current = flippedRef.current
-    let step = 0
-    while (current !== target) {
-      const forward = target > current
-      const leaf = forward ? current : current - 1
-      current += forward ? 1 : -1
-      const value = current
-      timers.current.push(
-        window.setTimeout(() => {
-          flippedRef.current = value
-          setFlipped(value)
-          if (value === spreadForPage(2)) setAboutVisit((v) => v + 1)
-          setTurning((t) => ({ ...t, [leaf]: 20 + (forward ? leaf : LEAF_COUNT - leaf) }))
-          window.setTimeout(() => {
-            setTurning((t) => {
-              const next = { ...t }
-              delete next[leaf]
-              return next
-            })
-          }, FLIP_MS)
-        }, step * FLIP_STAGGER_MS),
-      )
-      step++
+    if (skip) {
+      setStage('done')
+      return
     }
+    setStage('dive')
+    timers.current.push(window.setTimeout(() => setStage('done'), DIVE_MS))
   }, [])
-
-  // End the opening sequence and swing the cover open, slower than a normal page turn.
-  const finishIntro = useCallback(
-    (skip: boolean) => {
-      clearTimeout(introTimer.current)
-      setIntroDone(true)
-      setSkipped(skip)
-      setCoverOpening(true)
-      goTo(1)
-      window.setTimeout(() => setCoverOpening(false), COVER_OPEN_MS)
-      window.setTimeout(() => setZoomAllowed(true), ZOOM_DELAY_MS)
-    },
-    [goTo],
-  )
 
   // With reduced motion the intro is skipped straight away.
   useEffect(() => {
     const reduced = prefersReducedMotion()
-    introTimer.current = window.setTimeout(() => finishIntro(reduced), reduced ? 0 : INTRO_MS)
-    return () => clearTimeout(introTimer.current)
+    const id = window.setTimeout(() => finishIntro(reduced), reduced ? 0 : INTRO_MS)
+    timers.current.push(id)
+    return () => timers.current.forEach(clearTimeout)
   }, [finishIntro])
 
   useEffect(() => {
-    if (authMode) return
-    const onKey = (e: KeyboardEvent) => {
-      // Any key skips the intro; afterwards the arrow keys turn pages.
-      if (!introDone) return finishIntro(true)
-      if (e.key === 'ArrowRight') goTo(flippedRef.current + 1)
-      if (e.key === 'ArrowLeft') goTo(flippedRef.current - 1)
-    }
+    if (stage === 'intro') return
+    const id = window.setTimeout(() => setPowered(true), prefersReducedMotion() ? 0 : POWER_ON_MS)
+    return () => clearTimeout(id)
+  }, [stage])
+
+  // Any key skips the intro.
+  useEffect(() => {
+    if (stage !== 'intro' || authMode) return
+    const onKey = () => finishIntro(true)
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [authMode, goTo, introDone, finishIntro])
-
-  const closeAuth = useCallback(() => setAuthMode(null), [])
+  }, [stage, authMode, finishIntro])
 
   useEffect(() => {
     if (authMode) onSignInIntent?.()
   }, [authMode, onSignInIntent])
+
+  // On scroll: reveal blocks coming into view, highlight the section being read, and replay the About
+  // animation when it comes back into view.
+  const handleScroll = useCallback(() => {
+    const root = pageRef.current
+    if (!root) return
+    updateReveals(root)
+
+    // How far the hero has scrolled away (0 to 1), for its parallax.
+    const hero = heroRef.current
+    if (hero) hero.style.setProperty('--hero-p', String(Math.min(1, root.scrollTop / Math.max(1, hero.offsetHeight))))
+
+    const rootTop = root.getBoundingClientRect().top
+    const line = rootTop + root.clientHeight / 3
+    let current = ''
+    root.querySelectorAll<HTMLElement>('[data-section]').forEach((el) => {
+      if (el.getBoundingClientRect().top <= line) current = el.dataset.section ?? ''
+    })
+    if (root.scrollTop + root.clientHeight >= root.scrollHeight - 2) current = SPLASH_SECTIONS[SPLASH_SECTIONS.length - 1].id
+    setActiveSection(current)
+
+    const about = root.querySelector('#splash-about')?.getBoundingClientRect()
+    const visible = !!about && about.top < rootTop + root.clientHeight * 0.7 && about.bottom > rootTop + root.clientHeight * 0.3
+    if (visible && !aboutInView.current) setAboutVisit((v) => v + 1)
+    aboutInView.current = visible
+  }, [])
+
+  // Reveal what's on screen once the splash appears.
+  useEffect(() => {
+    if (stage === 'intro') return
+    const id = requestAnimationFrame(handleScroll)
+    return () => cancelAnimationFrame(id)
+  }, [stage, handleScroll])
+
+  // The hero's label and board shift a little with the pointer, for depth. One update per frame.
+  const handleHeroPointer = (e: React.PointerEvent<HTMLElement>) => {
+    const hero = e.currentTarget
+    const { clientX, clientY } = e
+    cancelAnimationFrame(pointerFrame.current)
+    pointerFrame.current = requestAnimationFrame(() => {
+      const rect = hero.getBoundingClientRect()
+      hero.style.setProperty('--mx', (((clientX - rect.left) / rect.width) * 2 - 1).toFixed(3))
+      hero.style.setProperty('--my', (((clientY - rect.top) / rect.height) * 2 - 1).toFixed(3))
+    })
+  }
+
+  const scrollToSection = (id: string) => {
+    document.getElementById(`splash-${id}`)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' })
+  }
+
+  const closeAuth = useCallback(() => setAuthMode(null), [])
 
   const handleAuthSubmit = () => {
     setLeaving(true)
     setTimeout(onLogin, 380)
   }
 
-  const toContents = () => goTo(1)
-  const toPage = (page: number) => goTo(spreadForPage(page))
-
-  const leaves = [
-    { front: <Cover />, back: <InsideCover /> },
-    {
-      front: <ContentsPage onSelect={toPage} />,
-      back: (
-        <PaperPage side="left" title={SECTIONS[0].title} page={1} onContents={toContents}>
-          <WhatIsEexpo />
-        </PaperPage>
-      ),
-    },
-    {
-      front: (
-        <PaperPage side="right" title={SECTIONS[1].title} page={2} onContents={toContents}>
-          {/* Not drawn until the page is first visited: it's a second detailed board drawing */}
-          {aboutVisit > 0 && <AboutDiagram key={aboutVisit} />}
-        </PaperPage>
-      ),
-      back: <PaperPage side="left" title={SECTIONS[2].title} page={3} onContents={toContents} />,
-    },
-    {
-      front: <PaperPage side="right" title={SECTIONS[3].title} page={4} onContents={toContents} />,
-      back: <PaperPage side="left" title={SECTIONS[4].title} page={5} onContents={toContents} />,
-    },
-    {
-      front: <PaperPage side="right" title={SECTIONS[5].title} page={6} onContents={toContents} />,
-      back: <PaperPage side="left" title={SECTIONS[6].title} page={7} onContents={toContents} />,
-    },
-  ]
+  const sectionBody = (id: string) => {
+    switch (id) {
+      case 'what':
+        return <WhatIsEexpo />
+      case 'about':
+        // Not drawn until the section is first reached: it's a second detailed board drawing
+        return aboutVisit > 0 && <AboutDiagram key={aboutVisit} />
+      case 'start':
+        return (
+          <div className="splash-start">
+            <button type="button" className="landing-btn primary" onClick={() => setAuthMode('create')}>
+              Create Account
+            </button>
+            <button type="button" className="landing-btn" onClick={() => setAuthMode('signin')}>
+              Sign In
+            </button>
+          </div>
+        )
+      default:
+        return null
+    }
+  }
 
   return (
     <div
-      className={`landing${leaving ? ' landing-out' : ''}${authMode ? ' modal-open' : ''}${introDone ? '' : ' intro-playing'}`}
+      ref={pageRef}
+      className={`landing${leaving ? ' landing-out' : ''}${authMode ? ' modal-open' : ''}${stage === 'intro' ? ' intro-playing' : ''}`}
+      onScroll={handleScroll}
     >
       <nav className="landing-nav">
-        <span className="nav-brand">
+        <button type="button" className="nav-brand" onClick={() => pageRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
           <img src="/ArduinoEmulatorIconTrans.png" alt="" />
           <span><BrandName /></span>
-        </span>
+        </button>
         <div className="nav-links">
-          <button type="button" className="nav-link active" aria-current="page" onClick={toContents}>
-            Home
-          </button>
+          {SPLASH_SECTIONS.filter((sec) => sec.id !== 'start').map((sec) => (
+            <button
+              key={sec.id}
+              type="button"
+              className={`nav-link${activeSection === sec.id ? ' active' : ''}`}
+              onClick={() => scrollToSection(sec.id)}
+            >
+              {sec.title}
+            </button>
+          ))}
         </div>
         <div className="nav-auth">
           <button type="button" className="nav-link" onClick={() => setAuthMode('signin')}>
@@ -556,74 +482,58 @@ export function LoginPage({ onLogin, onSignInIntent }: Props) {
         </div>
       </nav>
 
-      {/* Once open, the spread fills the screen; closing the book pulls back out to the desk */}
-      <main className={`book-stage${flipped > 0 && zoomAllowed ? ' fullscreen' : ''}`}>
-        <button
-          type="button"
-          className="book-arrow book-arrow-prev"
-          aria-label="Previous page"
-          onClick={() => goTo(flipped - 1)}
-          disabled={flipped === 0}
+      <main className="splash">
+        {/* The cover the intro dives into, full screen. Layers, outermost first: scroll parallax,
+            a slow camera drift, pointer parallax, then each element's entrance animation. */}
+        <section
+          ref={heroRef}
+          className={`splash-hero${stage !== 'intro' ? ' enter' : ''}`}
+          data-section=""
+          onPointerMove={handleHeroPointer}
         >
-          ‹
-        </button>
-
-        <div className={`book-zoom${introDone ? ' shown' : ''}${skipped ? ' skipped' : ''}`}>
-          <div className={`book${flipped === 0 ? ' closed' : ''}${coverOpening ? ' cover-opening' : ''}`}>
-            <div className={`book-shadow book-shadow-left${flipped > 0 ? ' visible' : ''}`} />
-            <div className="book-shadow book-shadow-right" />
-
-            <div className="book-base">
-              <InsideBackCover />
+          <div className="hero-light" />
+          <div className="hero-stage">
+            <div className="hero-drift">
+              <HeroRig powered={powered} />
             </div>
-
-            {leaves.map((leaf, i) => {
-              const isFlipped = i < flipped
-              const z = turning[i] ?? (isFlipped ? i + 1 : LEAF_COUNT - i + 1)
-              // Only the top leaf of each stack can be seen (plus any leaf mid-turn).
-              const buried = !(i in turning) && i !== flipped - 1 && i !== flipped
-              return (
-                <div
-                  key={i}
-                  className={`leaf${isFlipped ? ' flipped' : ''}${i in turning ? ' turning' : ''}${buried ? ' buried' : ''}`}
-                  style={{ zIndex: z }}
-                  onClick={() => goTo(isFlipped ? flipped - 1 : flipped + 1)}
-                >
-                  <div className="face front">{leaf.front}</div>
-                  <div className="face back">{leaf.back}</div>
-                </div>
-              )
-            })}
-
           </div>
-        </div>
+          <button type="button" className="splash-scroll-cue" onClick={() => scrollToSection('what')} aria-label="Scroll down">
+            ↓
+          </button>
+        </section>
 
-        <button
-          type="button"
-          className="book-arrow book-arrow-next"
-          aria-label="Next page"
-          onClick={() => goTo(flipped + 1)}
-          disabled={!introDone || flipped === LEAF_COUNT}
-        >
-          ›
-        </button>
+        {SPLASH_SECTIONS.map((sec, i) => (
+          <section key={sec.id} id={`splash-${sec.id}`} data-section={sec.id} className={`splash-page splash-page-${sec.id}`}>
+            <div className="splash-sheet reveal">
+              <header className="splash-sheet-head">
+                <div className="splash-field splash-field-title">
+                  <span className="splash-field-label">Title</span>
+                  <h2>{sec.title}</h2>
+                </div>
+                <div className="splash-field">
+                  <span className="splash-field-label">Page</span>
+                  <span className="splash-field-value">{i + 1}</span>
+                </div>
+              </header>
+              <div className="splash-sheet-body">{sectionBody(sec.id)}</div>
+            </div>
+          </section>
+        ))}
       </main>
 
       <div className="intro-light" />
-      {!introDone && (
-        <div className="intro-scene" onClick={() => finishIntro(true)}>
+      {stage !== 'done' && (
+        <div className={`intro-scene${stage === 'dive' ? ' diving' : ''}`} onClick={() => stage === 'intro' && finishIntro(true)}>
           <IntroTitle />
           <div className="intro-book-shadow" />
           <ClosedBook3D />
         </div>
       )}
-      {!introDone && (
+      {stage === 'intro' && (
         <button type="button" className="intro-skip" onClick={() => finishIntro(true)}>
           Skip intro ›
         </button>
       )}
-      <div className="letterbox letterbox-top" />
-      <div className="letterbox letterbox-bottom" />
 
       {authMode && (
         <AuthModal mode={authMode} onModeChange={setAuthMode} onSubmit={handleAuthSubmit} onClose={closeAuth} />

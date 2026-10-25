@@ -1,6 +1,7 @@
 // The Learn tab's course outline, from a first Arduino sketch up to the instruction set.
-// Titles and summaries are placeholders to rewrite. To add a lesson video, set `video` to a file URL
-// (e.g. '/videos/blink.mp4' in the public folder) or a YouTube link.
+// Each lesson's text and quiz live in src/lesson-docs/<id>.md (see lessonDoc.ts for the format).
+// To add a lesson video, set `video` to a file URL (e.g. '/videos/blink.mp4' in the public folder)
+// or a YouTube link.
 
 export interface Lesson {
   id: string
@@ -12,6 +13,8 @@ export interface Lesson {
 export interface Unit {
   id: string
   title: string
+  /** Color of the unit's LEDs on the course map */
+  led: string
   lessons: Lesson[]
 }
 
@@ -19,6 +22,7 @@ export const COURSE: Unit[] = [
   {
     id: 'getting-started',
     title: 'Getting Started',
+    led: '#ff4a3d',
     lessons: [
       { id: 'what-is-arduino', title: 'What is an Arduino?', summary: 'The board, the microcontroller on it, and what it can do.' },
       { id: 'board-tour', title: 'A Tour of the Board', summary: 'Pins, power, USB and the parts you will use most.' },
@@ -29,6 +33,7 @@ export const COURSE: Unit[] = [
   {
     id: 'electronics',
     title: 'Electronics Basics',
+    led: '#ffb21e',
     lessons: [
       { id: 'ohms-law', title: 'Voltage, Current and Resistance', summary: "Ohm's law and why it matters for every circuit." },
       { id: 'leds-resistors', title: 'LEDs and Resistors', summary: 'Why an LED needs a resistor, and how to pick one.' },
@@ -39,6 +44,7 @@ export const COURSE: Unit[] = [
   {
     id: 'programming',
     title: 'Programming the Arduino',
+    led: '#3fdc6b',
     lessons: [
       { id: 'variables', title: 'Variables and Types', summary: 'Storing numbers, and how big each type is.' },
       { id: 'digital-io', title: 'Digital Input and Output', summary: 'pinMode, digitalWrite and digitalRead.' },
@@ -50,6 +56,7 @@ export const COURSE: Unit[] = [
   {
     id: 'inside',
     title: 'Inside the Microcontroller',
+    led: '#3f8dff',
     lessons: [
       { id: 'compiling', title: 'From C++ to Machine Code', summary: 'What compiling does, and what a .hex file holds.' },
       { id: 'registers-memory', title: 'Registers and Memory', summary: 'The 32 registers, SRAM, flash, and I/O registers.' },
@@ -60,8 +67,10 @@ export const COURSE: Unit[] = [
   {
     id: 'isa',
     title: 'Instruction Set Architecture',
+    led: '#e9e4ff',
     lessons: [
       { id: 'what-is-isa', title: 'What is an ISA?', summary: 'The contract between software and the processor.' },
+      { id: 'fetch-execute', title: 'Fetch, Decode, Execute', summary: 'How the CPU works through a program one instruction at a time.' },
       { id: 'encoding', title: 'Instruction Formats and Encoding', summary: 'How opcodes and operands are packed into 16 bits.' },
       { id: 'sreg', title: 'The Status Register and Flags', summary: 'Carry, zero, negative and how branches use them.' },
       { id: 'branches-stack', title: 'Branches, Calls and the Stack', summary: 'Jumping around a program and returning from functions.' },
