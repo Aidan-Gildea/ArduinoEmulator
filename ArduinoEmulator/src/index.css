@@ -1,5 +1,8 @@
 :root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  /* Ubuntu Sans everywhere, with its monospace companion for code and numbers (loaded in index.html) */
+  --font-sans: 'Ubuntu Sans', 'Ubuntu', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'Ubuntu Sans Mono', 'Ubuntu Mono', ui-monospace, monospace;
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
   color: #ffffff;
@@ -33,4 +36,15 @@ button:focus,
 button:focus-visible {
   outline: 3px solid rgba(255, 255, 255, 0.55);
   outline-offset: 2px;
+}
+
+/* Shown for a moment while the workspace code downloads after signing in */
+.app-loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #142130;
+  color: rgba(232, 238, 244, 0.6);
+  font-size: 14px;
 }

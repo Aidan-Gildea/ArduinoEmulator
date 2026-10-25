@@ -10,19 +10,6 @@ export interface MachineData {
     StatusRegister: SREG;
 }
 
-export interface DataChange {
-    index: number;
-    before: number;
-    after: number;
-}
-
-export interface MachineDataDiff {
-    pc: number | null;
-    sp: number | null;
-    sregByte: SREG | null
-    dataChanges: DataChange[];
-}
-
 export interface CommandInformation {
     CommandName: string;
     CommandBytes: number[];
@@ -58,21 +45,22 @@ export const findAllInstructions = async (dataLines: string[]): Promise<CommandI
     return responseJson;
 };
 
-export const runInstruction = async (state: MachineData): Promise<MachineDataDiff> => {
-    const response = await fetch(`${API_BASE_URL}/Visualizer/RunInstruction`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(state),
-    });
+type RawInstruction = Record<string, unknown>;
 
-    if (!response.ok) {
-        throw new Error(`HTTP error! ${response.statusText}`);
-    }
-    const raw = await response.json();
-
-    return raw;
+// The backend has sent both PascalCase and camelCase property names over time; accept either.
+const toCompileResponse = (raw: Record<string, unknown> | null): CompileCodeResponse => {
+    const list = Array.isArray(raw?.instructions) ? (raw.instructions as RawInstruction[]) : [];
+    return {
+        hexText: (raw?.hexText as string) ?? null,
+        elfBase64: (raw?.elfBase64 as string) ?? null,
+        instructions: list.map((instruction) => ({
+            CommandName: (instruction.CommandName ?? instruction.commandName ?? 'NO COMMAND FOUND') as string,
+            CommandBytes: (instruction.CommandBytes ?? instruction.commandBytes ?? []) as number[],
+            ProgramAddressByte: (instruction.ProgramAddressByte ?? instruction.programAddressByte ?? null) as number | null,
+            SourceLineNumber: (instruction.SourceLineNumber ?? instruction.sourceLineNumber ?? null) as number | null,
+        })),
+        errors: Array.isArray(raw?.errors) ? (raw.errors as string[]) : [],
+    };
 };
 
 export const compileCode = async (sourceCode: string): Promise<CompileCodeResponse> => {
@@ -93,22 +81,87 @@ export const compileCode = async (sourceCode: string): Promise<CompileCodeRespon
         };
     }
 
-    const raw = await response.json();
-
-    const instructions: CommandInformation[] = Array.isArray(raw?.instructions)
-        ? raw.instructions.map((instruction: any) => ({
-            CommandName: instruction?.CommandName ?? instruction?.commandName ?? 'NO COMMAND FOUND',
-            CommandBytes: instruction?.CommandBytes ?? instruction?.commandBytes ?? [],
-            ProgramAddressByte: instruction?.ProgramAddressByte ?? instruction?.programAddressByte ?? null,
-            SourceLineNumber: instruction?.SourceLineNumber ?? instruction?.sourceLineNumber ?? null,
-        }))
-        : [];
-
-    return {
-        hexText: raw?.hexText ?? null,
-        elfBase64: raw?.elfBase64 ?? null,
-        instructions,
-        errors: Array.isArray(raw?.errors) ? raw.errors : [],
-    };
+    return toCompileResponse(await response.json());
 };
 
+/** A progress update while compiling: a new stage starting, or a line of arduino-cli's progress output. */
+export type CompileProgress = { type: 'stage'; stage: 'build' | 'decode' | 'map'; message: string } | { type: 'log'; message: string };
+
+/**
+ * Compiles and reports progress as it goes (build, decode, map stages and arduino-cli's step messages).
+ * Falls back to the plain endpoint when talking to an older API without streaming.
+ */
+export const compileCodeStream = async (
+    sourceCode: string,
+    onProgress: (progress: CompileProgress) => void,
+): Promise<CompileCodeResponse> => {
+    const response = await fetch(`${API_BASE_URL}/Visualizer/CompileCodeStream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sourceCode),
+    });
+
+    if (response.status === 404 || !response.body) {
+        onProgress({ type: 'stage', stage: 'build', message: 'Building the sketch with arduino-cli' });
+        return compileCode(sourceCode);
+    }
+    if (!response.ok) {
+        return { hexText: null, elfBase64: null, instructions: [], errors: [`HTTP error! ${response.statusText}`] };
+    }
+
+    // The response is newline-delimited JSON: progress events, then one "result".
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = '';
+    for (;;) {
+        const { done, value } = await reader.read();
+        buffered += decoder.decode(value, { stream: !done });
+        let newline;
+        while ((newline = buffered.indexOf('\n')) >= 0) {
+            const line = buffered.slice(0, newline).trim();
+            buffered = buffered.slice(newline + 1);
+            if (!line) continue;
+            const event = JSON.parse(line);
+            if (event.type === 'result') return toCompileResponse(event);
+            onProgress(event as CompileProgress);
+        }
+        if (done) break;
+    }
+    return { hexText: null, elfBase64: null, instructions: [], errors: ['The compiler stopped without sending a result.'] };
+};
+
+// --- Server-side emulator session --------------------------------------------------------------
+
+/** Machine snapshot from the backend emulator. `pc` is a word address; `index` is the instruction's position in the program list (-1 if none). */
+export interface EmulatorState {
+    pc: number;
+    index: number;
+    cycles: number;
+    dataSpace: number[];
+    error: string | null;
+}
+
+/** Input pin levels from the breadboard, as PINB/PINC/PIND bit masks. */
+export interface PinInputs {
+    b: number;
+    c: number;
+    d: number;
+}
+
+const emulatorPost = async (path: string, body?: unknown): Promise<EmulatorState> => {
+    const response = await fetch(`${API_BASE_URL}/Emulator/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!response.ok) {
+        throw new Error(`Emulator request failed: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+};
+
+export const loadEmulator = (dataLines: string[]) => emulatorPost('Load', dataLines);
+export const resetEmulator = () => emulatorPost('Reset');
+export const stepEmulator = (inputs: PinInputs) => emulatorPost('Step', { cycles: 0, inputs });
+/** Runs up to `cycles` clock cycles (16,000 per emulated millisecond). */
+export const runEmulator = (cycles: number, inputs: PinInputs) => emulatorPost('Run', { cycles: Math.round(cycles), inputs });

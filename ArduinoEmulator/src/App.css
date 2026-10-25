@@ -58,850 +58,6 @@
 }
 
 /* ============================================================
-   App header
-   ============================================================ */
-.app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--header-height);
-  background: rgba(0, 0, 0, 0.25);
-  border-bottom: var(--border-white-soft);
-  display: flex;
-  align-items: center;
-  padding: 0 18px;
-  gap: 12px;
-  z-index: 200;
-  backdrop-filter: blur(6px);
-}
-
-.app-header-logo {
-  width: 26px;
-  height: 26px;
-  object-fit: contain;
-}
-
-.app-header-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: white;
-  letter-spacing: 0.03em;
-}
-
-.app-header-brand {
-  color: #3dbabd;
-}
-
-.app-header-subtitle {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.42);
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
-  padding-left: 12px;
-  margin-left: 2px;
-  letter-spacing: 0.02em;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-}
-
-/* ============================================================
-   Left panel
-   ============================================================ */
-.left-side-panel {
-  position: fixed;
-  right: calc(100% - var(--right-panel-left) + 1px);
-  left: 0;
-  top: var(--header-height);
-  bottom: 0;
-  border-right: var(--border-white-soft);
-  display: flex;
-  flex-direction: column;
-}
-
-.left-tab-row {
-  display: flex;
-  flex-direction: row;
-  gap: 0;
-  padding: 10px 10px 0;
-  flex-shrink: 0;
-}
-
-.left-tab-button {
-  height: 40px;
-  min-width: 130px;
-  border: var(--border-white-soft);
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.5);
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 0 18px;
-  transition: background 0.15s, color 0.15s;
-  letter-spacing: 0.02em;
-  margin-right: 4px;
-}
-
-.left-tab-button:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.left-tab-button.active {
-  background: rgba(255, 255, 255, 0.16);
-  color: white;
-  border-color: rgba(255, 255, 255, 0.75);
-}
-
-.left-tab-button:focus,
-.left-tab-button:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4);
-}
-
-.left-main-panel {
-  flex: 1;
-  border: var(--border-white);
-  border-radius: 0 8px 8px 8px;
-  margin: 0 10px 10px 10px;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--panel-bg);
-}
-
-/* ============================================================
-   Toolbar
-   ============================================================ */
-.code-actions-panel {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: var(--border-white-soft);
-  height: 56px;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  background: var(--panel-bg-dark);
-}
-
-.code-actions-button {
-  flex: 1 1 0;
-  height: 100%;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  border-radius: 6px;
-  background: linear-gradient(160deg, #ffffff 0%, #dce8f5 100%);
-  cursor: pointer;
-  color: #2d4257;
-  font-weight: 700;
-  font-size: 12.5px;
-  letter-spacing: 0.02em;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition: transform 0.1s, box-shadow 0.1s, background 0.12s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.code-actions-button:hover {
-  background: linear-gradient(160deg, #e8f3ff 0%, #caddee 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 9px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.code-actions-button:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), inset 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.code-actions-button:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5), 0 2px 5px rgba(0, 0, 0, 0.2);
-}
-
-.code-actions-button:disabled {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.28);
-  border-color: rgba(255, 255, 255, 0.18);
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
-.code-actions-button:disabled:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.28);
-  transform: none;
-  box-shadow: none;
-}
-
-/* ============================================================
-   Code editor (Write Code tab)
-   ============================================================ */
-.code-editor-panel {
-  flex: 1;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.code-editor-workspace {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  gap: 10px;
-}
-
-.code-editor-monaco-pane {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.code-editor-textarea {
-  flex: 1;
-  width: 100%;
-  box-sizing: border-box;
-  resize: none;
-  overflow: auto;
-  border: var(--border-white-soft);
-  border-radius: 8px;
-  padding: 14px;
-  background: rgba(0, 0, 0, 0.25);
-  color: white;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 14px;
-  outline: none;
-}
-
-.code-editor-monaco {
-  flex: 1;
-  height: 100%;
-  min-height: 0;
-  border: var(--border-white-soft);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.code-editor-error-overlay {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 8px;
-  max-height: 38%;
-  overflow: auto;
-  border: 1px solid rgba(255, 100, 100, 0.4);
-  border-radius: 8px;
-  background: rgba(10, 4, 4, 0.94);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-  z-index: 20;
-}
-
-.code-editor-error-title {
-  position: sticky;
-  top: 0;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 100, 100, 0.2);
-  background: rgba(22, 6, 6, 0.97);
-  color: #fca5a5;
-  font-weight: 800;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-}
-
-.code-editor-error-list {
-  margin: 0;
-  padding: 8px 12px 10px 26px;
-}
-
-.code-editor-error-item {
-  color: #ffb3b3;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 12.5px;
-  line-height: 1.5;
-  margin-bottom: 4px;
-}
-
-/* Mapped instructions sidebar */
-.code-editor-mapped-panel {
-  width: 290px;
-  min-width: 220px;
-  max-width: 36%;
-  border: var(--border-white-soft);
-  border-radius: 8px;
-  background: var(--panel-bg-dark);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.code-editor-mapped-title {
-  padding: 9px 12px;
-  font-weight: 800;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.5);
-  border-bottom: var(--border-white-faint);
-  flex-shrink: 0;
-}
-
-.code-editor-mapped-list {
-  padding: 8px;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.code-editor-mapped-region {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 5px;
-  cursor: pointer;
-  transition: box-shadow 0.15s;
-}
-
-.code-editor-mapped-region.selected {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55);
-}
-
-.code-editor-mapped-item {
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 6px;
-  padding: 6px 9px;
-  background: rgba(255, 255, 255, 0.62);
-  color: #1e293b;
-  transition: background 0.1s;
-}
-
-.code-editor-mapped-item.active,
-.code-editor-mapped-item:hover {
-  background: rgba(255, 255, 255, 0.85);
-}
-
-.code-editor-mapped-name {
-  font-weight: 700;
-  font-size: 12px;
-}
-
-.code-editor-mapped-empty {
-  padding: 14px;
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 13px;
-}
-
-/* ============================================================
-   Hex / ELF viewer — code panel
-   ============================================================ */
-.code-panel {
-  flex: 1;
-  margin: 10px;
-  border: var(--border-white);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  background: var(--panel-bg);
-  min-height: 0;
-  overflow: hidden;
-}
-
-.code-panel-tab-row {
-  display: flex;
-  padding: 0 8px;
-  border-bottom: var(--border-white-soft);
-  background: var(--panel-bg-dark);
-  overflow-x: auto;
-  flex-shrink: 0;
-}
-
-.code-panel-tab-button {
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.45);
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 10px 14px;
-  white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
-  letter-spacing: 0.02em;
-}
-
-.code-panel-tab-button:hover {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.code-panel-tab-button.active {
-  color: white;
-  border-bottom-color: white;
-}
-
-.code-block {
-  flex: 1;
-  padding: 16px;
-  color: white;
-  overflow: auto;
-  min-height: 0;
-  animation: fade-in 0.18s ease;
-}
-
-.code-heading {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 12px;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-}
-
-.code-pre {
-  white-space: pre-wrap;
-  margin: 0;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 13px;
-  line-height: 1.65;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.code-status {
-  color: rgba(255, 255, 255, 0.45);
-  padding: 14px 16px;
-  font-size: 13px;
-  text-align: left;
-  flex-shrink: 0;
-}
-
-/* Loading spinner */
-.code-loading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 13px;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  flex-shrink: 0;
-}
-
-.code-loading-spinner {
-  width: 13px;
-  height: 13px;
-  border: 2px solid rgba(255, 255, 255, 0.18);
-  border-top-color: rgba(255, 255, 255, 0.75);
-  border-radius: 50%;
-  animation: spin 0.65s linear infinite;
-  flex-shrink: 0;
-}
-
-.error-list {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.error-list-item {
-  color: #ffb3b3;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  margin-bottom: 5px;
-}
-
-/* ============================================================
-   Welcome / empty state (Hex File Data tab)
-   ============================================================ */
-.hex-welcome {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow: hidden;
-  transition: background 0.2s;
-}
-
-/* PCB dot-grid background */
-.hex-welcome-pcb {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
-  background-size: 22px 22px;
-  pointer-events: none;
-}
-
-.hex-welcome-inner {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  padding: 32px 28px;
-  z-index: 1;
-  text-align: center;
-}
-
-/* LED status indicator */
-.hex-welcome-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hex-welcome-led {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #4ade80;
-  box-shadow: 0 0 5px #4ade80, 0 0 10px rgba(74, 222, 128, 0.4);
-  animation: pulse-led 2.5s ease-in-out infinite;
-  flex-shrink: 0;
-}
-
-.hex-welcome-status-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  letter-spacing: 0.04em;
-}
-
-/* Drop zone */
-.hex-welcome-drop-zone {
-  border: 2px dashed rgba(255, 255, 255, 0.28);
-  border-radius: 12px;
-  padding: 30px 52px;
-  width: 100%;
-  max-width: 400px;
-  box-sizing: border-box;
-  transition: border-color 0.2s, background 0.2s;
-  background: rgba(255, 255, 255, 0.025);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.hex-welcome.drag-over .hex-welcome-drop-zone {
-  border-color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.07);
-  animation: drop-zone-pulse 1s ease-in-out infinite;
-}
-
-.hex-welcome-drop-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
-  transition: color 0.2s;
-}
-
-.hex-welcome-drop-text code {
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  color: white;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.hex-welcome.drag-over .hex-welcome-drop-text {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.hex-welcome-drop-ready {
-  font-size: 12px;
-  color: #4ade80;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  letter-spacing: 0.04em;
-  animation: fade-in 0.15s ease;
-}
-
-.hex-welcome-hint {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.38);
-  line-height: 1.6;
-  margin: 0;
-}
-
-.hex-welcome-hint strong {
-  color: rgba(255, 255, 255, 0.68);
-  font-weight: 700;
-}
-
-.hex-welcome-or {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  max-width: 260px;
-  color: rgba(255, 255, 255, 0.22);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-}
-
-.hex-welcome-or span {
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.hex-welcome-or em {
-  font-style: normal;
-}
-
-/* ============================================================
-   Instruction cards (instructions tab)
-   ============================================================ */
-.instruction-item {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  animation: fade-in 0.15s ease;
-}
-
-.instruction-name {
-  font-weight: 800;
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #1e3a52;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-}
-
-.instruction-bytes {
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 9px;
-  border-radius: 6px;
-  background: rgba(109, 196, 237, 0.18);
-  border: 1px solid rgba(109, 196, 237, 0.3);
-  color: #a8e0ff;
-}
-
-.instruction-bits {
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.instruction-meta {
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Mapped region panel (mapped tab) */
-.mapped-region-panel {
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 8px;
-  margin-bottom: 8px;
-  animation: fade-in 0.15s ease;
-}
-
-.mapped-region-instruction-name {
-  color: #1e2c3a;
-  font-weight: 700;
-  font-size: 12px;
-  margin-bottom: 4px;
-}
-
-.mapped-region-instruction-name:last-child {
-  margin-bottom: 0;
-}
-
-/* ============================================================
-   Right panel
-   ============================================================ */
-.right-side-panel {
-  position: fixed;
-  left: var(--right-panel-left);
-  right: 0;
-  top: var(--header-height);
-  bottom: 0;
-  border-left: var(--border-white-soft);
-  display: flex;
-  flex-direction: column;
-  /* subtle PCB grid texture */
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 18px 18px;
-  background-color: rgba(0, 0, 0, 0.1);
-}
-
-.run-image-box {
-  margin: var(--panel-margin) var(--panel-margin) 0 var(--panel-margin);
-  border: var(--border-white);
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-}
-
-.run-image {
-  width: 100%;
-  max-height: 290px;
-  object-fit: contain;
-}
-
-/* Current instruction display */
-.instruction-display {
-  margin: var(--panel-margin) var(--panel-margin) 0 var(--panel-margin);
-  border: var(--border-white-soft);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 10px 14px;
-  color: white;
-  transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
-}
-
-.instruction-display.active {
-  border-color: rgba(130, 210, 255, 0.55);
-  background: rgba(80, 155, 220, 0.15);
-  box-shadow: 0 0 18px rgba(59, 130, 246, 0.18), inset 0 0 0 1px rgba(130, 210, 255, 0.12);
-}
-
-.instruction-display .instruction-title {
-  font-weight: 800;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 3px;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-}
-
-.instruction-display.active .instruction-title {
-  color: #a8e0ff;
-}
-
-.instruction-display .instruction-bytes-small {
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 14px;
-  color: white;
-  font-weight: 600;
-}
-
-.data-panel {
-  flex: 1;
-  border: var(--border-white);
-  border-radius: 10px;
-  margin: var(--panel-margin);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: rgba(0, 0, 0, 0.12);
-  min-height: 0;
-}
-
-.info-section {
-  display: flex;
-  flex-direction: row;
-  border-bottom: var(--border-white-soft);
-  flex-shrink: 0;
-}
-
-.info-item {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: white;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 13px;
-  padding: 10px;
-}
-
-.info-item:first-child {
-  border-right: var(--border-white-faint);
-}
-
-.info-label {
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-family: inherit;
-}
-
-.info-value {
-  background: linear-gradient(145deg, #ffffff, #e6e6e6);
-  color: #1e3a52;
-  padding: 3px 10px;
-  border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-weight: 700;
-  font-size: 13px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-/* Register grid */
-.register-grid-panel {
-  display: grid;
-  gap: 6px;
-  grid-template-columns: repeat(4, 1fr);
-  padding: 8px;
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-}
-
-.register-box-panel {
-  background: linear-gradient(145deg, #ffffff, #e8eef5);
-  color: #1e3a52;
-  text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  padding: 7px 4px;
-  border-radius: 5px;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition: box-shadow 0.15s, transform 0.1s;
-}
-
-.register-box-panel:hover {
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform: translateY(-1px);
-}
-
-.register-box-panel.register-changed {
-  animation: register-flash 0.55s ease-out forwards;
-}
-
-/* ============================================================
    Monaco source-line decorations (unchanged)
    ============================================================ */
 .monaco-editor .source-line-highlight-0 { background: rgba(255, 223, 229, 0.55); }
@@ -921,14 +77,6 @@
 .monaco-editor .source-line-highlight-gutter-5 { border-left: 3px solid #eadfff; }
 .monaco-editor .source-line-highlight-gutter-6 { border-left: 3px solid #ffdff4; }
 .monaco-editor .source-line-highlight-gutter-7 { border-left: 3px solid #f6e7d9; }
-
-/* ============================================================
-   Responsive
-   ============================================================ */
-@media (max-width: 980px) {
-  .code-editor-workspace { flex-direction: column; }
-  .code-editor-mapped-panel { width: 100%; max-width: 100%; min-width: 0; }
-}
 
 /* ============================================================
    Landing / login page
@@ -1185,6 +333,14 @@
 .book-stage.fullscreen .paper-right { padding-right: 80px; }
 .book-stage.fullscreen .paper-left { padding-left: 80px; }
 
+/* The big blurred shadows under the book are expensive to redraw at a new size every frame, and they
+   end up off screen anyway: fade them out as the zoom starts, then stop drawing them. */
+.book-stage.fullscreen .book-shadow {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0s 0.2s;
+}
+
 .book-stage.fullscreen .face,
 .book-stage.fullscreen .book-base,
 .book-stage.fullscreen .book-shadow {
@@ -1282,6 +438,12 @@
 }
 
 .face.front { border-radius: 0 6px 6px 0; }
+
+/* Pages that can't be seen aren't painted: anything buried in a stack, and the side of a page facing
+   away. Keeps page turns and the zoom to full screen smooth. */
+.leaf.buried { visibility: hidden; }
+.leaf.flipped:not(.turning) .face.front,
+.leaf:not(.flipped):not(.turning) .face.back { visibility: hidden; }
 .face.back { border-radius: 6px 0 0 6px; transform: rotateY(180deg); }
 
 /* Darkens a page as it lifts and turns */
@@ -1348,7 +510,7 @@
 }
 
 .paper-field-label {
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: calc(var(--ph) * 0.015);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1364,7 +526,7 @@
 }
 
 .paper-field-value {
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: calc(var(--ph) * 0.03);
   font-weight: 600;
   line-height: 1;
@@ -1392,7 +554,7 @@
   padding: 0;
   border: none;
   background: none;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: calc(var(--ph) * 0.016);
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -1432,6 +594,34 @@
   height: calc(var(--ph) * 0.06);
 }
 
+/* Written pages: text sits on the grid lines like notes in the notebook */
+.notebook-text {
+  padding: var(--cell) calc(var(--cell) * 1.5);
+  font-size: calc(var(--ph) * 0.026);
+  line-height: calc(var(--cell) * 2);
+  color: var(--ink);
+}
+
+.notebook-text p {
+  margin: 0;
+}
+
+.notebook-text .brand-name {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+/* Code reads like a highlighted term in someone's notes */
+.notebook-code {
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+  background: linear-gradient(transparent 12%, rgba(255, 214, 92, 0.55) 12%, rgba(255, 214, 92, 0.55) 88%, transparent 88%);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* Contents */
 .toc {
   margin: 0;
@@ -1469,7 +659,7 @@
 }
 
 .toc-page {
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 
@@ -1556,7 +746,7 @@
 
 .cover-sub {
   margin-top: calc(var(--ph) * 0.012);
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: calc(var(--ph) * 0.017);
   font-weight: 600;
   letter-spacing: 0.3em;
@@ -1601,18 +791,13 @@
 }
 
 /* Opening sequence */
-@property --iris {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 0%;
-}
-
+/* The spotlight is one big gradient circle that only scales, which the GPU can do without repainting */
 @keyframes iris {
-  0%   { --iris: 0%; }
-  15%  { --iris: 14%; }
-  45%  { --iris: 28%; }
-  85%  { --iris: 34%; }
-  100% { --iris: 75%; }
+  0%   { transform: translate(-50%, -50%) scale(0.5); }
+  15%  { transform: translate(-50%, -50%) scale(2); }
+  45%  { transform: translate(-50%, -50%) scale(4); }
+  85%  { transform: translate(-50%, -50%) scale(4.8); }
+  100% { transform: translate(-50%, -50%) scale(10.7); }
 }
 
 @keyframes title-camera {
@@ -1634,11 +819,6 @@
 @keyframes letter-fly {
   from { opacity: 0; transform: translateY(40%) translateZ(-1400px) rotateX(75deg); }
   to   { opacity: 1; transform: translateY(0) translateZ(0) rotateX(0); }
-}
-
-@keyframes letter-shine {
-  from { background-position: 100% 0; }
-  to   { background-position: 0 0; }
 }
 
 /* Every keyframe uses the same list of transforms so the motion interpolates smoothly */
@@ -1664,8 +844,8 @@
 }
 
 @keyframes book-glare {
-  0%, 46% { background-position: 120% 0; opacity: 0.9; }
-  100%    { background-position: -40% 0; opacity: 0; }
+  0%, 46% { transform: translateX(0); opacity: 0.9; }
+  100%    { transform: translateX(-66%); opacity: 0; }
 }
 
 @keyframes desk-shadow {
@@ -1680,13 +860,18 @@
   to   { opacity: 1; }
 }
 
-/* Spotlight: darkness everywhere except a circle that slowly opens up */
+/* Spotlight: darkness everywhere except a circle that slowly opens up. Big enough that even at its
+   smallest it still covers the corners of the screen. */
 .intro-light {
   position: fixed;
-  inset: 0;
+  left: 50%;
+  top: 52%;
   z-index: 32;
+  width: 300vmax;
+  height: 300vmax;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 52%, transparent var(--iris), rgba(5, 9, 16, 0.96) calc(var(--iris) + 28%));
+  background: radial-gradient(circle closest-side, transparent 4%, rgba(5, 9, 16, 0.96) 10%);
+  will-change: transform;
   animation: iris 4.6s cubic-bezier(0.4, 0, 0.2, 1) both;
   transition: opacity 0.9s ease;
 }
@@ -1730,21 +915,15 @@
   user-select: none;
 }
 
-/* Letters are filled with a moving gradient so a band of light sweeps across them */
 .intro-letter {
   display: inline-block;
   padding: 0 0.01em;
-  color: transparent;
-  background-image: linear-gradient(105deg, #e6edf3 42%, #ffffff 50%, #e6edf3 58%);
-  background-size: 320% 100%;
-  background-position: 100% 0;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: letter-fly 1s cubic-bezier(0.2, 0.8, 0.2, 1) both, letter-shine 1.1s ease both;
+  color: #eef3f7;
+  animation: letter-fly 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .intro-letter-e {
-  background-image: linear-gradient(105deg, #3dbabd 42%, #d4fdfe 50%, #3dbabd 58%);
+  color: #3dbabd;
 }
 
 .intro-book-shadow {
@@ -1756,6 +935,7 @@
   margin-left: calc(var(--pw) * -0.6);
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.6), transparent 70%);
   filter: blur(12px);
+  will-change: transform, opacity;
   animation: desk-shadow 4.6s ease both;
 }
 
@@ -1785,12 +965,17 @@
   transform: translateZ(calc(var(--bt) / 2));
 }
 
+/* A wide strip that slides across the cover; moving it (rather than its background) avoids
+   repainting the detailed cover underneath every frame. */
 .book3d-glare {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 300%;
   pointer-events: none;
-  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.18) 50%, transparent 65%);
-  background-size: 300% 100%;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.18) 50%, transparent 60%);
+  will-change: transform, opacity;
   animation: book-glare 4.6s ease-out both;
 }
 
@@ -2028,7 +1213,8 @@
 .callout {
   position: absolute;
   z-index: 3;
-  white-space: nowrap;
+  /* Narrow enough that neighbouring notes wrap instead of running into each other */
+  width: calc(var(--ph) * 0.15);
 }
 
 .callout-top { transform: translate(-50%, -100%); padding-bottom: 4px; text-align: center; }
@@ -2042,6 +1228,7 @@
 .callout-bottom .callout-inner { transform-origin: center top; }
 
 .callout-name {
+  white-space: nowrap;
   font-size: calc(var(--ph) * 0.017);
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -2051,7 +1238,7 @@
 
 .callout-note {
   margin-top: 1px;
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: calc(var(--ph) * 0.013);
   color: rgba(34, 54, 77, 0.6);
 }
@@ -2138,10 +1325,10 @@
 .pcb-socket-groove { stroke: rgba(255, 255, 255, 0.06); stroke-width: 2; }
 .pcb-chip-pins { fill: none; stroke: #c3cad1; stroke-width: 6; stroke-dasharray: 2.5 3.5; }
 .pcb-pin1 { fill: #0d0f12; }
-.pcb-chip-text { fill: #6b7380; font: 700 16px 'DM Mono', 'JetBrains Mono', monospace; letter-spacing: 6px; text-anchor: middle; }
-.pcb-chip-subtext { fill: #555c67; font: 500 8px 'DM Mono', 'JetBrains Mono', monospace; letter-spacing: 2px; text-anchor: middle; }
+.pcb-chip-text { fill: #6b7380; font: 700 16px var(--font-mono); letter-spacing: 6px; text-anchor: middle; }
+.pcb-chip-subtext { fill: #555c67; font: 500 8px var(--font-mono); letter-spacing: 2px; text-anchor: middle; }
 .pcb-crystal-inner { fill: none; stroke: rgba(0, 0, 0, 0.12); stroke-width: 1; }
-.pcb-crystal-text { fill: #5d6670; font: 600 7px 'DM Mono', 'JetBrains Mono', monospace; text-anchor: middle; }
+.pcb-crystal-text { fill: #5d6670; font: 600 7px var(--font-mono); text-anchor: middle; }
 .pcb-header { fill: #1c1f24; }
 .pcb-header-groove { stroke: rgba(255, 255, 255, 0.06); stroke-width: 1; }
 .pcb-socket { fill: #070809; }
@@ -2153,7 +1340,7 @@
 .pcb-label,
 .pcb-label-sm {
   fill: rgba(255, 255, 255, 0.85);
-  font-family: 'DM Mono', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   text-anchor: middle;
 }
 
@@ -2163,7 +1350,7 @@
 .pcb-label-sm.end { text-anchor: end; }
 .pcb-label-sm.start { text-anchor: start; }
 
-.pcb-brand { fill: white; font: 800 32px system-ui, -apple-system, sans-serif; letter-spacing: 3px; text-anchor: middle; }
+.pcb-brand { fill: white; font: 800 32px var(--font-sans); letter-spacing: 3px; text-anchor: middle; }
 .pcb-brand-e { fill: #7fe3e5; }
 
 .pcb-reset { cursor: pointer; }
@@ -2180,6 +1367,12 @@
 .led-on .led-lit { fill: #5ef08a; opacity: 1; }
 
 .board.resetting .led-l .led-lit { animation: led-reset 1.1s linear; }
+
+/* In the workbench the L LED follows pin 13, and TX/RX only flicker while a program runs */
+.board.static-l .led-l .led-lit { animation: none; opacity: 0; }
+.board.static-l.l-on .led-l .led-lit { opacity: 1; }
+.board.quiet .led-tx .led-lit,
+.board.quiet .led-rx .led-lit { animation: none; opacity: 0; }
 .board.resetting .led-tx .led-lit,
 .board.resetting .led-rx .led-lit { animation: none; }
 
@@ -2362,11 +1555,3 @@
 .app-main {
   animation: app-fade-in 0.35s ease;
 }
-
-/* ============================================================
-   Unused legacy stubs
-   ============================================================ */
-.component-title-panel, .board-visual-panel, .component-scroll-wrapper,
-.component-drop-zone, .component-board-image, .selection-box, .resize-handle,
-.placed-component-thumb, .component-scroll-grid, .component-image-box,
-.component-image-label, .component-image-thumb { display: none; }

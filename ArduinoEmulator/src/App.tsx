@@ -1,13 +1,19 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Editor, { type Monaco, type OnMount } from '@monaco-editor/react'
-import './App.css'
-import { findAllInstructions, runInstruction, compileCode } from './api'
-import type { CommandInformation, MachineData, MachineDataDiff } from './api'
-import { LoginPage } from './LoginPage'
+import './monacoSetup'
+import './Workbench.css'
+import { findAllInstructions, compileCodeStream, loadEmulator, resetEmulator, runEmulator, stepEmulator } from './api'
+import type { CommandInformation, EmulatorState, MachineData, PinInputs } from './api'
+import { Workbench, type Tool } from './Workbench'
+import { Debugger } from './Debugger'
+import { PartsPalette } from './PartsPalette'
+import { ProjectsSidebar } from './ProjectsSidebar'
+import { Learn } from './Learn'
+import { BuildProgress, type BuildState } from './BuildProgress'
+import { WIRE_COLORS, evaluateCircuit, type Circuit, type LedColor } from './circuit'
+import { loadProjects, newProject, storeProjects, type Project } from './projects'
 
 function ConvertHexToNumber(hexDigits: string): number { return parseInt(hexDigits, 16); }
-
-let dataLines: string[] = [];
 
 const pastelPalette = [
   '#ffdfe5',
@@ -91,70 +97,131 @@ const arduinoCompletionLabels = [
   'loop'
 ];
 
-function App() 
+const CLOCK_HZ = 16_000_000;
+const DATA_SIZE = 0x900;
+
+const freshMachine = (): MachineData => ({
+  CommandToParse: { CommandName: 'NONE', CommandBytes: [] },
+  PC: 0,
+  DataSpace: new Array(DATA_SIZE).fill(0),
+  SP: DATA_SIZE - 1,
+  StatusRegister: { sregByte: 0 },
+});
+
+// The machine as the debugger and breadboard see it, built from a backend snapshot. SP and SREG
+// live in their I/O registers (0x5D-0x5F), as on the real chip.
+const machineFromState = (state: EmulatorState): MachineData => ({
+  CommandToParse: { CommandName: 'NONE', CommandBytes: [] },
+  PC: state.pc,
+  DataSpace: state.dataSpace,
+  SP: state.dataSpace[0x5d] | (state.dataSpace[0x5e] << 8),
+  StatusRegister: { sregByte: state.dataSpace[0x5f] },
+});
+
+// Run speeds: one instruction at a time (watch the debugger), slowed-down time, or real time.
+const SPEEDS = [
+  { label: 'Instruction', kind: 'step', delay: 250 },
+  { label: '1/20×', kind: 'time', factor: 0.05 },
+  { label: 'Real time', kind: 'time', factor: 1 },
+] as const;
+
+// How often the run loop asks the backend for the next slice of emulated time.
+const FRAME_MS = 33;
+
+type Tab = 'code' | 'design' | 'learn';
+
+const TAB_LABELS: Record<Tab, string> = { code: 'Code', design: 'Design', learn: 'Learn' };
+
+// The steps shown while compiling a sketch or loading a .hex file.
+const COMPILE_STEPS = [
+  { id: 'build', label: 'Build sketch' },
+  { id: 'decode', label: 'Decode instructions' },
+  { id: 'map', label: 'Match to source lines' },
+  { id: 'load', label: 'Load into emulator' },
+];
+const HEX_STEPS = [
+  { id: 'decode', label: 'Decode instructions' },
+  { id: 'load', label: 'Load into emulator' },
+];
+
+const formatCommandBytes = (bytes: number[]) =>
+  bytes.map((b) => `0x${b.toString(16).padStart(2, '0').toUpperCase()}`).join(' ');
+
+const errorText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function App({ onExit }: { onExit: () => void })
 {
-  const registers = Array.from({ length: 32 }, (_, i) => i);
+
+  // Projects ----------------------------------------------------------------------------------------
+  const [projects, setProjects] = useState<Project[]>(() => loadProjects());
+  const [project, setProject] = useState<Project>(() => loadProjects()[0] ?? newProject('My first project'));
+  const [projectName, setProjectName] = useState(project.name);
+  const [codeInput, setCodeInput] = useState(project.code);
+  const [circuit, setCircuit] = useState<Circuit>(project.circuit);
+  const [dirty, setDirty] = useState(!projects.some((p) => p.id === project.id));
+
+  // Workspace ---------------------------------------------------------------------------------------
+  const [tab, setTab] = useState<Tab>('code');
+  const [codeSource, setCodeSource] = useState<'sketch' | 'hex'>('sketch');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Progress of the current compile or load, shown step by step.
+  const [build, setBuild] = useState<BuildState | null>(null);
+  const [now, setNow] = useState(() => performance.now());
+  const [tool, setTool] = useState<Tool>({ kind: 'select' });
+  const [ledColor, setLedColor] = useState<LedColor>('red');
+  const [wireColor, setWireColor] = useState(WIRE_COLORS[0]);
+  const [pressed, setPressed] = useState<Set<string>>(new Set());
+
+  // Emulator ----------------------------------------------------------------------------------------
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeLeftTab, setActiveLeftTab] = useState<'writeCode' | 'uploadHex'>('uploadHex');
-  const [activeCodePanelTab, setActiveCodePanelTab] = useState<'hex' | 'elf' | 'instructions' | 'mapped' | 'unknown' | 'errors'>('hex');
-  const [codeInput, setCodeInput] = useState<string>('#include <Arduino.h>\n\nvoid setup() \n{  \n\n}\n\nvoid loop()\n{\n\n}  ');
-  const [isMonacoConfigured, setIsMonacoConfigured] = useState(false);
+  const [hexTab, setHexTab] = useState<'hex' | 'elf' | 'unknown' | 'errors'>('hex');
   const [commands, setCommands] = useState<CommandInformation[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [hexText, setHexText] = useState<string>("");
   const [elfText, setElfText] = useState<string>("");
+  const [dataLines, setDataLines] = useState<string[]>([]);
   const [instructionPosition, setInstructionPosition] = useState(0);
+  const [machineData, setMachineData] = useState<MachineData>(freshMachine);
+  const [changedRegisters, setChangedRegisters] = useState<Set<number>>(new Set());
+  const [cycles, setCycles] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [speed, setSpeed] = useState(2);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  // What the loaded program was built from: the sketch text it was compiled from, or a .hex file.
+  const [compiledFrom, setCompiledFrom] = useState<string | null>(null);
+
+  // The run loop reads these instead of state so it always sees the latest values.
+  const commandsRef = useRef(commands);
+  const machineRef = useRef(machineData);
+  const runningRef = useRef(false);
+  const circuitRef = useRef(circuit);
+  const pressedRef = useRef(pressed);
+  const speedRef = useRef(speed);
+  useEffect(() => {
+    commandsRef.current = commands;
+    circuitRef.current = circuit;
+    pressedRef.current = pressed;
+    speedRef.current = speed;
+  }, [commands, circuit, pressed, speed]);
+
+  // Editor ------------------------------------------------------------------------------------------
+  const [isMonacoConfigured, setIsMonacoConfigured] = useState(false);
   const completionProviderRef = useRef<{ dispose: () => void } | null>(null);
-  const monacoEditorRef = useRef<any>(null);
+  const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const highlightedDecorationIdsRef = useRef<string[]>([]);
-  const [hoveredMappedInstructionIndex, setHoveredMappedInstructionIndex] = useState<number | null>(null);
-  const [selectedMappedLineNumber, setSelectedMappedLineNumber] = useState<number | null>(null);
-  const [machineData, setMachineData] = useState<MachineData>(
-  {
-    CommandToParse: commands[instructionPosition],
-    PC: 0,
-    DataSpace: new Array(2000).fill(0),
-    SP: 2000,
-    StatusRegister: { sregByte: 0 },
-  });
 
-  const [changedRegisters, setChangedRegisters] = useState<Set<number>>(new Set());
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  const formatCommandBytes = (bytes: number[]) =>
-    bytes.map((b) => `0x${b.toString(16).padStart(2, '0').toUpperCase()}`).join(' ');
-
-  const formatCommandBits = (bytes: number[]) =>
-    bytes.map((b) => b.toString(2).padStart(8, '0')).join(' ');
+  const circuitState = useMemo(
+    () => evaluateCircuit(circuit, pressed, machineData.DataSpace),
+    [circuit, pressed, machineData],
+  );
 
   const unknownInstructions = commands.filter((command) => command.CommandName === 'NO COMMAND FOUND');
-  const mappedInstructions = commands.filter((command) => command.SourceLineNumber != null);
-  const mappedInstructionRows = commands
-    .map((command, index) => ({ command, index }))
-    .filter((entry) => entry.command.SourceLineNumber != null);
 
-  const mappedInstructionRegions = (() => {
-    const groups = new Map<number, { lineNumber: number; entries: typeof mappedInstructionRows; colorIndex: number }>();
-
-    for (const entry of mappedInstructionRows) {
-      const lineNumber = entry.command.SourceLineNumber as number;
-      const existing = groups.get(lineNumber);
-      if (existing) {
-        existing.entries.push(entry);
-      } else {
-        groups.set(lineNumber, {
-          lineNumber,
-          entries: [entry],
-          colorIndex: lineNumber % pastelPalette.length,
-        });
-      }
-    }
-
-    return Array.from(groups.values()).sort((a, b) => a.lineNumber - b.lineNumber);
-  })();
+  const markDirty = () => setDirty(true);
 
   const clearHighlightedSourceLine = () => {
     if (!monacoEditorRef.current) {
@@ -164,16 +231,6 @@ function App()
     highlightedDecorationIdsRef.current = monacoEditorRef.current.deltaDecorations(
       highlightedDecorationIdsRef.current,
       []);
-  };
-
-  const restoreSelectedHighlight = () => {
-    const selectedRegion = mappedInstructionRegions.find((region) => region.lineNumber === selectedMappedLineNumber);
-    if (!selectedRegion) {
-      clearHighlightedSourceLine();
-      return;
-    }
-
-    highlightSourceLine(selectedRegion.lineNumber, selectedRegion.colorIndex);
   };
 
   const highlightSourceLine = (lineNumber: number, colorIndex: number) => {
@@ -200,29 +257,129 @@ function App()
     monacoEditorRef.current.revealLineInCenter(lineNumber);
   };
 
-  const processHexFileContent = (content: string) => {
+  // Show which source line the current instruction came from. Skipped while running at speed, where it
+  // would jump around the editor many times a second.
+  useEffect(() => {
+    if (running && SPEEDS[speed].kind === 'time') return;
+    const line = commands[instructionPosition]?.SourceLineNumber;
+    if (line != null) highlightSourceLine(line, line % pastelPalette.length);
+  }, [commands, instructionPosition, running, speed]);
+
+  // Emulator controls ---------------------------------------------------------------------------------
+  // The program runs on the backend emulator, which keeps the machine between requests. Each step or
+  // slice of run time returns a snapshot that drives the debugger and the breadboard.
+
+  const stop = () => {
+    runningRef.current = false;
+    setRunning(false);
+  };
+
+  // Show a snapshot from the backend, flashing the registers that changed since the last one.
+  const applyState = (state: EmulatorState) => {
+    const previous = machineRef.current.DataSpace;
+    const changed = new Set<number>();
+    for (let r = 0; r < 32; r++) if (state.dataSpace[r] !== previous[r]) changed.add(r);
+    const machine = machineFromState(state);
+    machineRef.current = machine;
+    setMachineData(machine);
+    setInstructionPosition(state.index);
+    setChangedRegisters(changed);
+    setCycles(state.cycles);
+    if (state.error) {
+      stop();
+      setErrorMessages([`The program stopped: ${state.error}`]);
+    }
+  };
+
+  // Input pin levels for the backend, read from the breadboard.
+  const currentInputs = (): PinInputs => {
+    const pins = evaluateCircuit(circuitRef.current, pressedRef.current, machineRef.current.DataSpace).pinRegisters;
+    return { b: pins.B, c: pins.C, d: pins.D };
+  };
+
+  // Restart the program. The board's reset button keeps it running, like a real board; the Reset
+  // button in the Run panel stops it.
+  const resetMachine = async ({ keepRunning = false } = {}) => {
+    if (!keepRunning) stop();
+    clearHighlightedSourceLine();
+    if (commandsRef.current.length === 0) return;
+    try {
+      applyState(await resetEmulator());
+      setErrorMessages([]);
+    } catch (e) {
+      setErrorMessages([errorText(e, 'Failed to reset the emulator')]);
+    }
+  };
+
+  const loadProgram = async (instructions: CommandInformation[], lines: string[]) => {
+    stop();
+    clearHighlightedSourceLine();
+    commandsRef.current = instructions;
+    setCommands(instructions);
+    machineRef.current = freshMachine();
+    if (instructions.length === 0) {
+      setMachineData(machineRef.current);
+      setInstructionPosition(0);
+      setCycles(0);
+      return;
+    }
+    applyState(await loadEmulator(lines));
+  };
+
+  const handleStep = async () => {
+    try {
+      applyState(await stepEmulator(currentInputs()));
+    } catch (e) {
+      setErrorMessages([errorText(e, 'Failed to run instruction')]);
+    }
+  };
+
+  // Runs until stopped: the program's loop() runs forever, just like on a board.
+  const handleRun = async () => {
+    if (runningRef.current || commandsRef.current.length === 0) return;
+    runningRef.current = true;
+    setRunning(true);
+    setErrorMessages([]);
+    try {
+      let last = performance.now();
+      while (runningRef.current) {
+        const mode = SPEEDS[speedRef.current];
+        if (mode.kind === 'step') {
+          applyState(await stepEmulator(currentInputs()));
+          await sleep(mode.delay);
+          last = performance.now();
+          continue;
+        }
+        // Ask for as much emulated time as real time has passed (scaled by the speed), capped so a
+        // stall doesn't turn into one enormous request.
+        const now = performance.now();
+        const elapsed = Math.min(now - last, 250);
+        last = now;
+        applyState(await runEmulator((elapsed / 1000) * CLOCK_HZ * mode.factor, currentInputs()));
+        const spent = performance.now() - now;
+        if (spent < FRAME_MS) await sleep(FRAME_MS - spent);
+      }
+    } catch (e) {
+      setErrorMessages([errorText(e, 'Failed to run the program')]);
+    } finally {
+      stop();
+    }
+  };
+
+  const processHexFileContent = async (content: string) => {
     setHexText(content);
     setElfText("");
-    setCommands([]);
-    setSelectedMappedLineNumber(null);
-    clearHighlightedSourceLine();
-    setInstructionPosition(0);
-    setChangedRegisters(new Set());
-    setMachineData({
-      CommandToParse: { CommandName: 'NONE', CommandBytes: [] },
-      PC: 0,
-      DataSpace: new Array(2000).fill(0),
-      SP: 2000,
-      StatusRegister: { sregByte: 0 },
-    });
-    dataLines = ParseHexDataLines(content);
-    if (dataLines.length === 0) {
+    await loadProgram([], []);
+    const lines = ParseHexDataLines(content);
+    setDataLines(lines);
+    if (lines.length === 0) {
       setErrorMessages(['No instruction data records found in HEX file.']);
-      setActiveCodePanelTab('errors');
-    } else {
-      setErrorMessages([]);
-      setActiveCodePanelTab('hex');
+      setHexTab('errors');
+      return;
     }
+    setErrorMessages([]);
+    setHexTab('hex');
+    await convertToInstructions(lines);
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,13 +392,6 @@ function App()
     event.target.value = "";
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(true);
-  };
-
-  const handleDragLeave = () => setIsDraggingOver(false);
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(false);
@@ -252,126 +402,153 @@ function App()
     reader.readAsText(file);
   };
 
-  const handleButtonClick = () => {
-    fileInputRef.current?.click();
-    
-  };
+  // --- Build progress ---------------------------------------------------------------------------
 
-  const handleStepClick = async () => {
-    let diff: MachineDataDiff;
-    machineData.CommandToParse = commands[instructionPosition];
+  const startBuild = (title: string, steps: { id: string; label: string }[]) =>
+    setBuild({ title, startedAt: performance.now(), steps: steps.map((st) => ({ ...st, status: 'pending' as const })) });
 
-    diff = await runInstruction(machineData);
+  // Finish the step in progress and start the next one.
+  const enterStep = (id: string, detail?: string) =>
+    setBuild((b) => {
+      if (!b) return b;
+      const t = performance.now();
+      return {
+        ...b,
+        steps: b.steps.map((st) =>
+          st.id === id
+            ? { ...st, status: 'active', startedAt: t, detail }
+            : st.status === 'active'
+              ? { ...st, status: 'done', endedAt: t }
+              : st,
+        ),
+      };
+    });
 
-    if(diff.pc != null) machineData.PC = diff.pc;
-    if(diff.sregByte != null) machineData.StatusRegister = diff.sregByte;
-    if(diff.sp != null) machineData.SP = diff.sp;
+  const stepDetail = (detail: string) =>
+    setBuild((b) => b && { ...b, steps: b.steps.map((st) => (st.status === 'active' ? { ...st, detail } : st)) });
 
-    console.log(`Diff Change Length ${diff.dataChanges.length}`);
+  const endBuild = (ok: boolean) =>
+    setBuild((b) => {
+      if (!b) return b;
+      const t = performance.now();
+      return {
+        ...b,
+        endedAt: t,
+        failed: !ok,
+        // On success, steps that weren't reported separately (an older API does them all in one go) count as done.
+        steps: b.steps.map((st) =>
+          st.status === 'active'
+            ? { ...st, status: ok ? 'done' : 'error', endedAt: t }
+            : ok && st.status === 'pending'
+              ? { ...st, status: 'done' }
+              : st,
+        ),
+      };
+    });
 
-    let changedRegistersSet: Set<number> = new Set<number>;
+  // Tick the elapsed times while something is in progress.
+  useEffect(() => {
+    if (!build || build.endedAt) return;
+    const id = setInterval(() => setNow(performance.now()), 200);
+    return () => clearInterval(id);
+  }, [build]);
 
-    for(let i = 0; i < diff.dataChanges.length; i++) // Code cannot register a change properly. 
-    {
-      //if(machineData.DataSpace[diff.dataChanges[i].index] == diff.dataChanges[i].before) continue; // verification that there was a change
+  // A successful build's summary goes away on its own; a failed one stays until dismissed.
+  useEffect(() => {
+    if (!build?.endedAt || build.failed) return;
+    const id = setTimeout(() => setBuild((b) => (b === build ? null : b)), 4000);
+    return () => clearTimeout(id);
+  }, [build]);
 
-      if(diff.dataChanges[i].index <= 31)
-      {
-        changedRegistersSet.add(diff.dataChanges[i].index);
-      }
-
-      console.log(`Data Space Change at ${diff.dataChanges[i].index}`);
-      machineData.DataSpace[diff.dataChanges[i].index] = diff.dataChanges[i].after;
-    }
-    setChangedRegisters(changedRegistersSet);
-    setInstructionPosition(instructionPosition + 1);
-    machineData.CommandToParse = commands[instructionPosition];
-  };
-
-  const handleConvertToInstructions = async () => {
+  const convertToInstructions = async (lines = dataLines) => {
     try {
       setLoading(true);
       setErrorMessages([]);
 
-      if (dataLines.length === 0) {
+      if (lines.length === 0) {
         throw new Error('No HEX instruction data available. Upload or compile code first.');
       }
 
-      const result = await findAllInstructions(dataLines);
-      setCommands(result);
-      setInstructionPosition(0);
-      setMachineData((prev) => ({ ...prev, CommandToParse: result[0] }));
-      setActiveCodePanelTab('instructions');
-    } catch (e: any) {
-      setErrorMessages([e?.message ?? 'Failed to convert to instructions']);
-      setActiveCodePanelTab('errors');
+      startBuild('Loading hex file', HEX_STEPS);
+      enterStep('decode', `Decoding ${lines.length} lines of hex data`);
+      const instructions = await findAllInstructions(lines);
+      enterStep('load', `Loading ${instructions.length} instructions into the emulator`);
+      await loadProgram(instructions, lines);
+      setCompiledFrom('hex');
+      endBuild(true);
+    } catch (e) {
+      endBuild(false);
+      setErrorMessages([errorText(e, 'Failed to convert to instructions')]);
+      setHexTab('errors');
     } finally {
       setLoading(false);
     }
   };
 
+  // Compiles the sketch and loads it. Returns whether there is a program to run.
   const handleCompileCode = async () => {
     try {
       setLoading(true);
       setErrorMessages([]);
-      const result = await compileCode(codeInput);
+      startBuild('Compiling', COMPILE_STEPS);
+      const result = await compileCodeStream(codeInput, (progress) => {
+        if (progress.type === 'stage') enterStep(progress.stage, progress.message);
+        else stepDetail(progress.message);
+      });
 
       if (result.errors.length > 0 || !result.hexText) {
+        endBuild(false);
         setElfText("");
         setErrorMessages(result.errors.length > 0 ? result.errors : ['Failed to compile code']);
-        setActiveCodePanelTab('errors');
-        return;
+        return false;
       }
 
       setHexText(result.hexText);
       setElfText(result.elfBase64 ? ConvertElfBase64ToHexDump(result.elfBase64) : 'No compiled ELF payload returned.');
-      setSelectedMappedLineNumber(null);
-      clearHighlightedSourceLine();
-      setInstructionPosition(0);
-      setChangedRegisters(new Set());
-      setMachineData({
-        CommandToParse: { CommandName: 'NONE', CommandBytes: [] },
-        PC: 0,
-        DataSpace: new Array(2000).fill(0),
-        SP: 2000,
-        StatusRegister: { sregByte: 0 },
-      });
 
-      dataLines = ParseHexDataLines(result.hexText);
-      if (dataLines.length === 0) {
+      const lines = ParseHexDataLines(result.hexText);
+      setDataLines(lines);
+      if (lines.length === 0) {
+        endBuild(false);
         setErrorMessages(['Compilation succeeded but no HEX instruction data records were found.']);
-        setActiveCodePanelTab('errors');
-        return;
+        return false;
       }
 
-      const instructions = result.instructions.length > 0
-        ? result.instructions
-        : await findAllInstructions(dataLines);
-
-      setCommands(instructions);
-      setInstructionPosition(0);
-      setMachineData((prev) => ({
-        ...prev,
-        CommandToParse: instructions[0] ?? { CommandName: 'NONE', CommandBytes: [] }
-      }));
-
-      setActiveLeftTab('uploadHex');
-      setActiveCodePanelTab('elf');
-    } 
-
-    catch (e: any) {
-      setErrorMessages([e?.message ?? 'Failed to compile code']);
-      setActiveCodePanelTab('errors');
-    } 
+      const instructions = result.instructions.length > 0 ? result.instructions : await findAllInstructions(lines);
+      enterStep('load', `Loading ${instructions.length} instructions into the emulator`);
+      await loadProgram(instructions, lines);
+      setCompiledFrom(codeInput);
+      endBuild(true);
+      return true;
+    }
+    catch (e) {
+      endBuild(false);
+      setErrorMessages([errorText(e, 'Failed to compile code')]);
+      return false;
+    }
     finally {
       setLoading(false);
     }
+  };
+
+  // Run from either tab: compiles first if the sketch changed since the last build. Compile errors
+  // switch to the Code tab so they're visible.
+  const needsCompile = compiledFrom !== 'hex' && compiledFrom !== codeInput;
+  const handleRunClick = async () => {
+    if (needsCompile && !(await handleCompileCode())) {
+      setTab('code');
+      setCodeSource('sketch');
+      return;
+    }
+    handleRun();
   };
 
   const handleCodeEditorMount: OnMount = (editor, monaco) => {
     monacoEditorRef.current = editor;
     monacoRef.current = monaco;
     editor.focus();
+    // The editor measures character widths at startup; measure again once the web font arrives.
+    document.fonts.ready.then(() => monaco.editor.remeasureFonts());
 
     if (isMonacoConfigured) {
       return;
@@ -423,377 +600,317 @@ function App()
     setIsMonacoConfigured(true);
   };
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={() => setIsAuthenticated(true)} />
-  }
+  // Projects ----------------------------------------------------------------------------------------
+
+  const saveProject = useCallback(() => {
+    const saved: Project = { ...project, name: projectName.trim() || 'Untitled project', code: codeInput, circuit, updatedAt: Date.now() };
+    const list = [saved, ...projects.filter((p) => p.id !== saved.id)];
+    storeProjects(list);
+    setProjects(list);
+    setProject(saved);
+    setProjectName(saved.name);
+    setDirty(false);
+  }, [project, projectName, codeInput, circuit, projects]);
+
+  const openProject = (p: Project) => {
+    if (dirty && !window.confirm('Discard unsaved changes to the current project?')) return;
+    setProject(p);
+    setProjectName(p.name);
+    setCodeInput(p.code);
+    setCircuit(p.circuit);
+    setDirty(!projects.some((saved) => saved.id === p.id));
+    setPressed(new Set());
+    setCompiledFrom(null);
+    setHexText('');
+    setElfText('');
+    setErrorMessages([]);
+    loadProgram([], []);
+  };
+
+  const deleteProject = (p: Project) => {
+    if (!window.confirm(`Delete "${p.name}"? This can't be undone.`)) return;
+    const list = projects.filter((saved) => saved.id !== p.id);
+    storeProjects(list);
+    setProjects(list);
+    if (p.id === project.id) setDirty(true);
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        saveProject();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [saveProject]);
+
+  const activeStep = build && !build.endedAt ? build.steps.find((st) => st.status === 'active') : undefined;
+  const programStatus = loading
+    ? activeStep
+      ? `${activeStep.label}… ${((now - (activeStep.startedAt ?? now)) / 1000).toFixed(0)}s`
+      : 'Starting…'
+    : commands.length === 0
+      ? 'No program loaded'
+      : running
+        ? 'Running'
+        : cycles > 0
+          ? 'Stopped'
+          : 'Ready';
+
+  const errorsPanel = errorMessages.length > 0 && (
+    <div className="code-errors" role="log" aria-live="polite">
+      <div className="code-errors-title">Errors</div>
+      <ul>
+        {errorMessages.map((message, index) => (
+          <li key={index}>{message}</li>
+        ))}
+      </ul>
+    </div>
+  );
 
   return (
-    <div className="app-main">
-      <header className="app-header">
-        <img className="app-header-logo" src="/ArduinoEmulatorIconTrans.png" alt="" />
-        <span className="app-header-title">
-          <span className="app-header-brand">Arduino</span> Emulator
-        </span>
-        <span className="app-header-subtitle">AVR Instruction Debugger</span>
-      </header>
-      <div className="left-side-panel">
-        <div className="left-tab-row">
-          <button
-            className={`left-tab-button ${activeLeftTab === 'writeCode' ? 'active' : ''}`}
-            onClick={() => setActiveLeftTab('writeCode')}
-          >
-            Write Code
-          </button>
-          <button
-            className={`left-tab-button ${activeLeftTab === 'uploadHex' ? 'active' : ''}`}
-            onClick={() => setActiveLeftTab('uploadHex')}
-          >
-            Hex File Data
-          </button>
+    <div className="wb-app app-main">
+      <header className="wb-header">
+        <div className="wb-brand">
+          <span className="brand-e">EE</span>XPO
         </div>
 
-        <div className="left-main-panel">
-          {activeLeftTab === 'writeCode' ? (
-            <>
-              <div className="code-actions-panel">
-                <button className="code-actions-button" onClick={handleCompileCode}>
-                  Compile Code
-                </button>
-                <button className="code-actions-button">
-                  Run Code
-                </button>
-              </div>
-              <div className="code-editor-panel">
-                <div className="code-editor-workspace">
-                  <div className="code-editor-monaco-pane">
-                    <div className="code-editor-monaco">
-                      <Editor
-                        language="cpp"
-                        theme="vs-dark"
-                        value={codeInput}
-                        onMount={handleCodeEditorMount}
-                        onChange={(value) => setCodeInput(value ?? '')}
-                        options={{
-                          automaticLayout: true,
-                          minimap: { enabled: false },
-                          fontSize: 15,
-                          tabSize: 2,
-                          insertSpaces: true,
-                          wordWrap: 'on',
-                          suggestOnTriggerCharacters: true,
-                          quickSuggestions: {
-                            other: true,
-                            comments: false,
-                            strings: false,
-                          },
-                          scrollBeyondLastLine: false,
-                        }}
-                      />
-                    </div>
-                    {errorMessages.length > 0 && (
-                      <div className="code-editor-error-overlay" role="log" aria-live="polite">
-                        <div className="code-editor-error-title">Errors</div>
-                        <ul className="code-editor-error-list">
-                          {errorMessages.map((message, index) => (
-                            <li key={index} className="code-editor-error-item">{message}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
+        <div className="wb-project">
+          <input
+            className="wb-project-name"
+            value={projectName}
+            onChange={(e) => {
+              setProjectName(e.target.value);
+              markDirty();
+            }}
+            aria-label="Project name"
+          />
+          <span className={`wb-save-state${dirty ? ' dirty' : ''}`}>{dirty ? 'Unsaved' : 'Saved'}</span>
+        </div>
 
-                  {(commands.length > 0 || loading) && (
-                    <div className="code-editor-mapped-panel">
-                      <div className="code-editor-mapped-title">Mapped Instructions</div>
-                      {mappedInstructionRegions.length === 0 ? (
-                        <div className="code-editor-mapped-empty">No source-line mappings available for this build.</div>
-                      ) : (
-                        <div className="code-editor-mapped-list">
-                          {mappedInstructionRegions.map((region, regionIndex) => (
-                            <div
-                              key={`${region.lineNumber}-${regionIndex}`}
-                              className={`code-editor-mapped-region ${selectedMappedLineNumber === region.lineNumber ? 'selected' : ''}`}
-                              style={{
-                                backgroundColor: pastelPalette[region.colorIndex],
-                                borderColor: pastelPalette[region.colorIndex],
-                              }}
-                              onMouseEnter={() => {
-                                setHoveredMappedInstructionIndex(region.entries[0]?.index ?? null);
-                                highlightSourceLine(region.lineNumber, region.colorIndex);
-                              }}
-                              onMouseLeave={() => {
-                                setHoveredMappedInstructionIndex(null);
-                                restoreSelectedHighlight();
-                              }}
-                              onClick={() => {
-                                setSelectedMappedLineNumber(region.lineNumber);
-                                highlightSourceLine(region.lineNumber, region.colorIndex);
-                              }}
-                            >
-                              {region.entries.map((entry) => (
-                                <div
-                                  key={`${entry.index}-${entry.command.CommandName}`}
-                                  className={`code-editor-mapped-item ${hoveredMappedInstructionIndex === entry.index ? 'active' : ''}`}
-                                >
-                                  <span className="code-editor-mapped-name">{entry.command.CommandName}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
+        <nav className="wb-tabs" role="tablist" aria-label="View">
+          {(['code', 'design', 'learn'] as const).map((t) => (
+            <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+              {TAB_LABELS[t]}
+            </button>
+          ))}
+        </nav>
+
+        <div className="wb-header-actions">
+          <span className={`wb-status ${loading ? 'wb-status-busy' : `wb-status-${programStatus.toLowerCase().replace(/[^a-z]/g, '')}`}`}>
+            {loading && <span className="wb-spinner" aria-hidden="true" />}
+            {programStatus}
+          </span>
+          {running ? (
+            <button type="button" className="wb-btn stop" onClick={stop}>
+              ■ Stop
+            </button>
+          ) : (
+            <button type="button" className="wb-btn primary" onClick={handleRunClick} disabled={loading}>
+              Run ▶
+            </button>
+          )}
+          <button type="button" className="wb-btn" onClick={saveProject} title="Save (Ctrl+S / Cmd+S)">
+            Save
+          </button>
+          <button type="button" className="wb-btn ghost" onClick={onExit}>
+            Exit
+          </button>
+        </div>
+      </header>
+
+      <div className="wb-body">
+        {tab !== 'learn' && (
+          <ProjectsSidebar
+            projects={projects}
+            currentId={project.id}
+            currentName={projectName}
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed((c) => !c)}
+            onOpen={openProject}
+            onNew={() => openProject(newProject())}
+            onDelete={deleteProject}
+          />
+        )}
+
+        <div className="wb-content">
+          {build && <BuildProgress build={build} now={now} onDismiss={() => setBuild(null)} />}
+
+          {/* Code and Design stay mounted so the editor keeps its undo history and the bench its state */}
+          <section className="code-view" hidden={tab !== 'code'}>
+            <div className="code-main">
+              <div className="code-toolbar">
+                <div className="segmented small" role="tablist" aria-label="Source">
+                  <button type="button" className={codeSource === 'sketch' ? 'active' : ''} onClick={() => setCodeSource('sketch')}>
+                    Sketch
+                  </button>
+                  <button type="button" className={codeSource === 'hex' ? 'active' : ''} onClick={() => setCodeSource('hex')}>
+                    Hex file
+                  </button>
+                </div>
+                <div className="code-toolbar-actions">
+                  {codeSource === 'sketch' ? (
+                    <button type="button" className="wb-btn" onClick={handleCompileCode} disabled={loading || running}>
+                      Compile
+                    </button>
+                  ) : (
+                    <>
+                      <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".hex" hidden />
+                      <button type="button" className="wb-btn" onClick={() => fileInputRef.current?.click()} disabled={running}>
+                        Open .hex…
+                      </button>
+                    </>
+                  )}
+                  <span className="toolbar-divider" />
+                  <button type="button" className="wb-btn" onClick={handleStep} disabled={running || commands.length === 0}>
+                    Step
+                  </button>
+                  <button type="button" className="wb-btn" onClick={() => resetMachine()} disabled={commands.length === 0}>
+                    Reset
+                  </button>
+                  <div className="segmented small" aria-label="Speed">
+                    {SPEEDS.map((sp, i) => (
+                      <button key={sp.label} type="button" className={speed === i ? 'active' : ''} onClick={() => setSpeed(i)}>
+                        {sp.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="code-editor" hidden={codeSource !== 'sketch'}>
+                <Editor
+                  language="cpp"
+                  theme="vs-dark"
+                  value={codeInput}
+                  onMount={handleCodeEditorMount}
+                  onChange={(value) => {
+                    setCodeInput(value ?? '');
+                    markDirty();
+                  }}
+                  options={{
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    fontFamily: "'Ubuntu Sans Mono', 'Ubuntu Mono', monospace",
+                    tabSize: 2,
+                    insertSpaces: true,
+                    wordWrap: 'on',
+                    suggestOnTriggerCharacters: true,
+                    quickSuggestions: {
+                      other: true,
+                      comments: false,
+                      strings: false,
+                    },
+                    scrollBeyondLastLine: false,
+                  }}
+                />
+              </div>
+
+              {codeSource === 'hex' && (
+                <div className="hex-view">
+                  {!hexText ? (
+                    <div
+                      className={`hex-drop${isDraggingOver ? ' over' : ''}`}
+                      onDrop={handleDrop}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDraggingOver(true);
+                      }}
+                      onDragLeave={() => setIsDraggingOver(false)}
+                    >
+                      {isDraggingOver ? 'Release to load' : (
+                        <>
+                          Drop a <code>.hex</code> file here, or compile your sketch to see its hex
+                        </>
                       )}
                     </div>
+                  ) : (
+                    <>
+                      <div className="segmented small">
+                        {(
+                          [
+                            ['hex', 'Hex'],
+                            ['elf', 'ELF'],
+                            ['unknown', `Unknown (${unknownInstructions.length})`],
+                            ['errors', `Errors (${errorMessages.length})`],
+                          ] as const
+                        ).map(([id, label]) => (
+                          <button key={id} type="button" className={hexTab === id ? 'active' : ''} onClick={() => setHexTab(id)}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {hexTab === 'hex' && <pre className="hex-pre">{hexText}</pre>}
+                      {hexTab === 'elf' && <pre className="hex-pre">{elfText || 'No ELF yet. Compile code to see ELF data.'}</pre>}
+                      {hexTab === 'unknown' && (
+                        <pre className="hex-pre">
+                          {unknownInstructions.length === 0
+                            ? 'No unknown instructions found.'
+                            : unknownInstructions.map((c) => formatCommandBytes(c.CommandBytes)).join('\n')}
+                        </pre>
+                      )}
+                      {hexTab === 'errors' && <pre className="hex-pre">{errorMessages.join('\n') || 'No errors.'}</pre>}
+                    </>
                   )}
                 </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="code-actions-panel">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept=".hex"
-                  style={{ display: 'none' }}
-                />
-                <button className="code-actions-button" onClick={handleButtonClick}>
-                  Upload Hex
-                </button>
-                <button className="code-actions-button" onClick={handleConvertToInstructions} disabled={!hexText}>
-                  Convert to Instructions
-                </button>
-                <button className="code-actions-button" onClick={handleStepClick} disabled={commands.length === 0}>
-                  Step
-                </button>
-                <button className="code-actions-button" disabled={commands.length === 0}>
-                  Run
-                </button>
-              </div>
-              <div className="code-panel">
-                {(hexText || elfText || loading || errorMessages.length > 0 || commands.length > 0) ? (
-                  <>
-                    <div className="code-panel-tab-row">
-                      <button
-                        className={`code-panel-tab-button ${activeCodePanelTab === 'hex' ? 'active' : ''}`}
-                        onClick={() => setActiveCodePanelTab('hex')}
-                      >
-                        Hex File
-                      </button>
-                      <button
-                        className={`code-panel-tab-button ${activeCodePanelTab === 'elf' ? 'active' : ''}`}
-                        onClick={() => setActiveCodePanelTab('elf')}
-                      >
-                        ELF File
-                      </button>
-                      <button
-                        className={`code-panel-tab-button ${activeCodePanelTab === 'instructions' ? 'active' : ''}`}
-                        onClick={() => setActiveCodePanelTab('instructions')}
-                      >
-                        Instructions
-                      </button>
-                      <button
-                        className={`code-panel-tab-button ${activeCodePanelTab === 'mapped' ? 'active' : ''}`}
-                        onClick={() => setActiveCodePanelTab('mapped')}
-                      >
-                        With Source Line ({mappedInstructions.length})
-                      </button>
-                      <button
-                        className={`code-panel-tab-button ${activeCodePanelTab === 'unknown' ? 'active' : ''}`}
-                        onClick={() => setActiveCodePanelTab('unknown')}
-                      >
-                        Unknown ({unknownInstructions.length})
-                      </button>
-                      <button
-                        className={`code-panel-tab-button ${activeCodePanelTab === 'errors' ? 'active' : ''}`}
-                        onClick={() => setActiveCodePanelTab('errors')}
-                      >
-                        Errors ({errorMessages.length})
-                      </button>
-                    </div>
+              )}
 
-                    {loading && (
-                    <div className="code-loading">
-                      <span className="code-loading-spinner" />
-                      converting instructions...
-                    </div>
-                  )}
+              {errorsPanel}
+            </div>
 
-                    {activeCodePanelTab === 'hex' && (
-                      <div className="code-block">
-                        <div className="code-heading">Hex File</div>
-                        <pre className="code-pre">{hexText || 'No compiled or uploaded HEX yet.'}</pre>
-                      </div>
-                    )}
-
-                    {activeCodePanelTab === 'elf' && (
-                      <div className="code-block">
-                        <div className="code-heading">ELF File</div>
-                        <pre className="code-pre">{elfText || 'No compiled ELF yet. Compile code to view ELF data.'}</pre>
-                      </div>
-                    )}
-
-                    {activeCodePanelTab === 'instructions' && (
-                      <div className="code-block">
-                        {commands.length === 0 ? (
-                          <div className="code-status">No instructions loaded yet.</div>
-                        ) : (
-                          commands.map((command, index) => (
-                            <div key={index} className="instruction-item">
-                              <div className="instruction-name">
-                                {`Instruction Name: ${command.CommandName}`}
-                              </div>
-                              <div className="instruction-meta">
-                                {`Source Line: ${command.SourceLineNumber ?? 'Unavailable'}`}
-                              </div>
-                              <div className="instruction-bytes">
-                                {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
-                              </div>
-                              <div className="instruction-bits">
-                                {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-
-                    {activeCodePanelTab === 'mapped' && (
-                      <div className="code-block">
-                        <div className="code-heading">Instructions With Source Line</div>
-                        {mappedInstructionRegions.length === 0 ? (
-                          <div className="code-status">No instructions with source line mapping are available.</div>
-                        ) : (
-                          mappedInstructionRegions.map((region, regionIndex) => (
-                            <div
-                              key={`${region.lineNumber}-${regionIndex}`}
-                              className="mapped-region-panel"
-                              style={{
-                                backgroundColor: pastelPalette[region.colorIndex],
-                                borderColor: pastelPalette[region.colorIndex],
-                              }}
-                            >
-                              {region.entries.map((entry) => (
-                                <div key={`${entry.index}-${entry.command.CommandName}`} className="mapped-region-instruction-name">
-                                  {entry.command.CommandName}
-                                </div>
-                              ))}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-
-                    {activeCodePanelTab === 'unknown' && (
-                      <div className="code-block">
-                        <div className="code-heading">Unknown Instructions</div>
-                        {unknownInstructions.length === 0 ? (
-                          <div className="code-status">No unknown instructions found.</div>
-                        ) : (
-                          unknownInstructions.map((command, index) => (
-                            <div key={index} className="instruction-item">
-                              <div className="instruction-name">
-                                {`Instruction Name: ${command.CommandName}`}
-                              </div>
-                              <div className="instruction-meta">
-                                {`Source Line: ${command.SourceLineNumber ?? 'Unavailable'}`}
-                              </div>
-                              <div className="instruction-bytes">
-                                {`Command Bytes: ${formatCommandBytes(command.CommandBytes)}`}
-                              </div>
-                              <div className="instruction-bits">
-                                {`Command Bits: ${formatCommandBits(command.CommandBytes)}`}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-
-                    {activeCodePanelTab === 'errors' && (
-                      <div className="code-block">
-                        <div className="code-heading">Errors</div>
-                        {errorMessages.length === 0 ? (
-                          <div className="code-status">No errors.</div>
-                        ) : (
-                          <ul className="error-list">
-                            {errorMessages.map((message, index) => (
-                              <li key={index} className="error-list-item">{message}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div
-                    className={`hex-welcome${isDraggingOver ? ' drag-over' : ''}`}
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                  >
-                    <div className="hex-welcome-pcb" />
-                    <div className="hex-welcome-inner">
-                      <div className="hex-welcome-status">
-                        <span className="hex-welcome-led" />
-                        <span className="hex-welcome-status-label">no program loaded</span>
-                      </div>
-                      <div className="hex-welcome-drop-zone">
-                        <div className="hex-welcome-drop-text">
-                          drop a <code>.hex</code> file here
-                        </div>
-                        {isDraggingOver && <div className="hex-welcome-drop-ready">release to load</div>}
-                      </div>
-                      <p className="hex-welcome-hint">
-                        or use <strong>Upload Hex</strong> above
-                      </p>
-                      <div className="hex-welcome-or">
-                        <span /><em>or</em><span />
-                      </div>
-                      <p className="hex-welcome-hint">
-                        switch to <strong>Write Code</strong> to compile Arduino C++ directly
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-      <div className="right-side-panel">
-          <div className="run-image-box">
-            <img
-              className="run-image"
-              src="/ArduinoEmulatorIconTrans.png"
-              alt="Instruction run visual"
+            <Debugger
+              commands={commands}
+              position={instructionPosition}
+              machine={machineData}
+              changedRegisters={changedRegisters}
+              cycles={cycles}
+              onInstructionClick={(i) => {
+                const line = commands[i]?.SourceLineNumber;
+                if (line == null) return;
+                setCodeSource('sketch');
+                highlightSourceLine(line, line % pastelPalette.length);
+              }}
             />
-          </div>
-          <div className={`instruction-display${commands[instructionPosition] ? ' active' : ''}`}>
-            <div className="instruction-title">{commands[instructionPosition]?.CommandName ?? '—'}</div>
-            <div className="instruction-bytes-small">{formatCommandBytes(commands[instructionPosition]?.CommandBytes ?? [])}</div>
-          </div>
-          <div className="data-panel">
-            <div className="info-section">
-              <div className="info-item">
-                <span className="info-label">Hex Instruction:</span>
-                <span className="info-value">
-                  {commands[instructionPosition]?.CommandName ?? 'NONE'}
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Program Counter:</span>
-                <span className="info-value">{machineData.PC}</span>
-              </div>
-            </div>
-            <div className="register-grid-panel">
-              {registers.map((registerNum) => (
-                <div key={registerNum} className={`register-box-panel ${changedRegisters.has(registerNum) ? 'register-changed' : ''}`}>
-                  R{registerNum}: 0x{(machineData.DataSpace[registerNum] || 0).toString(16).padStart(2, '0').toUpperCase()}
-                </div>
-              ))}
-            </div>
-          </div>
+          </section>
+
+          <section className="design-view" hidden={tab !== 'design'}>
+            <PartsPalette
+              tool={tool}
+              onToolChange={setTool}
+              ledColor={ledColor}
+              onLedColorChange={setLedColor}
+              wireColor={wireColor}
+              onWireColorChange={setWireColor}
+            />
+            <Workbench
+              circuit={circuit}
+              onChange={(c) => {
+                setCircuit(c);
+                markDirty();
+              }}
+              tool={tool}
+              onToolChange={setTool}
+              wireColor={wireColor}
+              state={circuitState}
+              pressed={pressed}
+              onPress={(id, down) =>
+                setPressed((prev) => {
+                  const next = new Set(prev);
+                  if (down) next.add(id);
+                  else next.delete(id);
+                  return next;
+                })
+              }
+              running={running}
+              onBoardReset={() => resetMachine({ keepRunning: true })}
+            />
+          </section>
+
+          {tab === 'learn' && <Learn />}
+        </div>
       </div>
     </div>
   )
